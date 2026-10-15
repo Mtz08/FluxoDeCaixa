@@ -18,24 +18,27 @@ import hashlib
 import logging
 import os
 import re
+import shutil
 import sqlite3
 import tempfile
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import Engine, func, select
+from sqlalchemy import Engine, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core import auditoria
 from app.core.auditoria import Auditoria
 from app.core.config import Config
+from app.core.database import criar_engine, eh_sqlite
 from app.core.datas import FUSO_LOJA, agora_utc, formatar_data_hora, hoje_local, para_local
 from app.core.erros import ErroNegocio, SemPermissao
-from app.core.migracoes import migrar
+from app.core.migracoes import migrar, migrar_na_transacao
 from app.modules.auth.models import Usuario
 from app.modules.backup import cripto
 from app.modules.backup.models import BackupRegistro, Gatilho
+from app.modules.backup.transferencia import transferir
 from app.modules.configuracao import service as configuracao
 
 log = logging.getLogger(__name__)
@@ -71,21 +74,50 @@ def copiar_banco(origem: Path, destino: Path) -> None:
         fonte.close()
 
 
-def instantaneo(cfg: Config) -> bytes:
-    """Bytes de uma cópia íntegra do banco atual."""
+def _engine_da_sessao(db: Session) -> Engine:
+    engine = db.get_bind()
+    if not isinstance(engine, Engine):
+        raise TypeError("Sessão sem engine associado.")
+    return engine
+
+
+def _pasta_temporaria(cfg: Config) -> Path:
     pasta_tmp = cfg.dir_dados / "tmp"
     pasta_tmp.mkdir(parents=True, exist_ok=True)
-    descritor, nome = tempfile.mkstemp(suffix=".db", dir=pasta_tmp)
-    os.close(descritor)
-    caminho = Path(nome)
+    return Path(tempfile.mkdtemp(dir=pasta_tmp))
+
+
+def instantaneo(cfg: Config, engine: Engine | None = None) -> bytes:
+    """Bytes de uma cópia íntegra do banco atual, sempre no formato SQLite.
+
+    SQLite: API de backup online. PostgreSQL: os dados são copiados para um SQLite
+    novo (mesma estrutura), então o backup é o mesmo arquivo nos dois casos.
+    """
+    pasta = _pasta_temporaria(cfg)
+    caminho = pasta / "caixa.db"
     try:
-        copiar_banco(cfg.caminho_banco, caminho)
+        if engine is None or eh_sqlite(engine):
+            copiar_banco(cfg.caminho_banco, caminho)
+        else:
+            _copiar_postgres_para_sqlite(engine, Config(dir_dados=pasta))
         problemas = _integridade(caminho)
         if problemas:
             raise ErroNegocio(f"O banco está com problema de integridade: {problemas[0]}")
         return caminho.read_bytes()
     finally:
-        caminho.unlink(missing_ok=True)
+        shutil.rmtree(pasta, ignore_errors=True)
+
+
+def _copiar_postgres_para_sqlite(engine: Engine, cfg_destino: Config) -> None:
+    destino_engine = criar_engine(cfg_destino)
+    try:
+        migrar(destino_engine)
+        with engine.connect() as origem, destino_engine.connect() as destino:
+            with destino.begin():
+                transferir(origem, destino)
+            origem.rollback()
+    finally:
+        destino_engine.dispose()
 
 
 # ---------------------------------------------------------------- rotação
@@ -176,7 +208,8 @@ def fazer_backup(
     try:
         prefs = configuracao.carregar(db, cfg)
         db.rollback()  # não segurar a trava do banco durante a cópia
-        registros = _executar(cfg, prefs.backup_pastas, gatilho, usuario_id)
+        engine = _engine_da_sessao(db)
+        registros = _executar(cfg, engine, prefs.backup_pastas, gatilho, usuario_id)
         for registro in registros:
             db.add(registro)
         db.commit()
@@ -190,7 +223,11 @@ def fazer_backup(
 
 
 def _executar(
-    cfg: Config, pastas: tuple[str, ...], gatilho: Gatilho, usuario_id: int | None
+    cfg: Config,
+    engine: Engine,
+    pastas: tuple[str, ...],
+    gatilho: Gatilho,
+    usuario_id: int | None,
 ) -> list[BackupRegistro]:
     agora = agora_utc()
 
@@ -206,7 +243,7 @@ def _executar(
     if not senha or not pastas:
         return [registro("falha", erro="Backup não configurado: defina a senha e as pastas.")]
     try:
-        conteudo = cripto.cifrar(instantaneo(cfg), senha)
+        conteudo = cripto.cifrar(instantaneo(cfg, engine), senha)
     except Exception as erro:  # banco travado, integridade, disco local...
         log.exception("Falha ao preparar o backup")
         return [registro("falha", erro=_mensagem_erro(erro))]
@@ -252,7 +289,8 @@ def gerar_para_download(
     if not senha:
         raise ErroNegocio("Defina antes a senha do backup (Configurações → Backup).")
     db.rollback()  # não segurar o banco durante a cópia
-    conteudo = cripto.cifrar(instantaneo(cfg), senha)
+    engine = _engine_da_sessao(db)
+    conteudo = cripto.cifrar(instantaneo(cfg, engine), senha)
     nome = nome_arquivo(Gatilho.MANUAL, agora_utc()).replace("_manual", "_baixado")
     auditoria.registrar(
         db,
@@ -285,7 +323,9 @@ class Situacao:
 
 def situacao(db: Session, cfg: Config) -> Situacao:
     prefs = configuracao.carregar(db, cfg)
-    senha = (cfg.dir_dados / cripto.ARQUIVO_SENHA).exists()
+    senha = (
+        cripto.senha_no_ambiente() is not None or (cfg.dir_dados / cripto.ARQUIVO_SENHA).exists()
+    )
     historico = list(
         db.scalars(select(BackupRegistro).order_by(BackupRegistro.id.desc()).limit(30))
     )
@@ -397,6 +437,23 @@ def validar_banco_restaurado(caminho: Path) -> None:
         raise ErroNegocio("O arquivo não contém um banco do Caixa da Papelaria.")
 
 
+def _restaurar_no_postgres(engine: Engine, cfg_backup: Config) -> None:
+    """Apaga e recria tudo e copia o backup — numa ÚNICA transação: se algo falhar,
+    o PostgreSQL volta exatamente como estava."""
+    backup_engine = criar_engine(cfg_backup)
+    try:
+        migrar(backup_engine)  # backup de versão anterior: atualiza a estrutura da cópia
+        with backup_engine.connect() as origem, engine.connect() as destino:
+            with destino.begin():
+                destino.execute(text("DROP SCHEMA public CASCADE"))
+                destino.execute(text("CREATE SCHEMA public"))
+                migrar_na_transacao(destino)
+                transferir(origem, destino)
+            origem.rollback()
+    finally:
+        backup_engine.dispose()
+
+
 def restaurar(
     cfg: Config,
     engine: Engine,
@@ -420,9 +477,8 @@ def restaurar(
     except cripto.BackupIlegivel as erro:
         raise ErroNegocio(str(erro)) from erro
 
-    pasta_tmp = cfg.dir_dados / "tmp"
-    pasta_tmp.mkdir(parents=True, exist_ok=True)
-    candidato = pasta_tmp / "restaurar.db"
+    pasta = _pasta_temporaria(cfg)
+    candidato = pasta / "caixa.db"
     candidato.write_bytes(dados)
     try:
         validar_banco_restaurado(candidato)
@@ -433,17 +489,20 @@ def restaurar(
         copia_atual = (
             pasta_pre / f"caixa_antes_de_restaurar_{para_local(agora_utc()):%Y%m%d_%H%M%S}.db"
         )
-        copiar_banco(cfg.caminho_banco, copia_atual)
+        copia_atual.write_bytes(instantaneo(cfg, engine))
         fazer_backup(cfg, fabrica, Gatilho.PRE_RESTAURACAO, admin.id)
 
-        # 2) Troca o conteúdo do banco em uso pela API de backup do SQLite.
-        engine.dispose()
-        copiar_banco(candidato, cfg.caminho_banco)
+        # 2) Troca os dados.
+        if eh_sqlite(engine):
+            engine.dispose()
+            copiar_banco(candidato, cfg.caminho_banco)
+            # O backup pode ser de uma versão anterior do sistema: atualiza a estrutura.
+            migrar(engine)
+        else:
+            _restaurar_no_postgres(engine, Config(dir_dados=pasta))
     finally:
-        candidato.unlink(missing_ok=True)
+        shutil.rmtree(pasta, ignore_errors=True)
 
-    # 3) O backup pode ser de uma versão anterior do sistema: atualiza a estrutura.
-    migrar(engine)
     db = fabrica()
     try:
         auditoria.registrar(

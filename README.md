@@ -172,13 +172,13 @@ antes uma cópia do estado atual.
 |---|---|
 | Linguagem | Python 3.12+ |
 | Web | FastAPI + Starlette, Jinja2, HTMX (local), CSS próprio — sem build de front-end |
-| Banco | SQLite (WAL, `synchronous=FULL`, `foreign_keys=ON`, `BEGIN IMMEDIATE`) via SQLAlchemy 2.0 + Alembic |
+| Banco | SQLite na loja (WAL, `synchronous=FULL`, `BEGIN IMMEDIATE`) **ou** PostgreSQL na nuvem (Neon, trava `pg_advisory_xact_lock`), via SQLAlchemy 2.0 + Alembic; mesmos gatilhos nos dois (`app/core/gatilhos.py`) |
 | Segurança | argon2 (senhas), CSRF double-submit, cookies HttpOnly/SameSite=Strict, CSP, validação de Host |
 | Relatórios | fpdf2 (PDF), CSV padrão Excel-BR |
 | Backup | cryptography (AES-256-GCM + scrypt), DPAPI do Windows via ctypes |
 | QR Code | segno |
 
-Publicar como site na nuvem: [docs/PUBLICAR_NA_NUVEM.md](docs/PUBLICAR_NA_NUVEM.md).
+Publicar como site: [Render + Neon, grátis](docs/PUBLICAR_RENDER_NEON.md) ou [servidor próprio / Oracle](docs/PUBLICAR_NA_NUVEM.md).
 Versões exatas testadas: `constraints.txt`. Regras de negócio confirmadas: [docs/REGRAS_NEGOCIO.md](docs/REGRAS_NEGOCIO.md).
 
 ### Estrutura
@@ -266,7 +266,10 @@ Rotação: todos de hoje + último de cada um de 30 dias + último de cada um de
 ```bat
 python -m venv .venv
 .venv\Scripts\pip install -c constraints.txt -e ".[dev]"
-.venv\Scripts\python -m pytest --cov=app      :: 270+ testes (banco real com triggers)
+.venv\Scripts\python -m pytest --cov=app      :: 290+ testes (banco real com triggers)
+:: Mesma bateria no PostgreSQL (servidor de TESTE; cada teste cria/apaga um banco):
+set CAIXA_TESTE_POSTGRES=postgresql://usuario@127.0.0.1:5432
+.venv\Scripts\python -m pytest
 .venv\Scripts\ruff check .  &&  .venv\Scripts\ruff format --check .
 .venv\Scripts\mypy app                        :: modo strict
 ```

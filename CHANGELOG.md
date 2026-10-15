@@ -4,6 +4,24 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.3.0] - 2026-10-15
+
+### Adicionado
+- Suporte a **PostgreSQL** (ex.: Neon) via `CAIXA_DATABASE_URL`, com as mesmas garantias do
+  SQLite: gatilhos de proteção gerados para os dois bancos (`app/core/gatilhos.py`) e trava
+  única de escrita (`pg_advisory_xact_lock`). A bateria completa roda nos dois bancos.
+- Backup no PostgreSQL no mesmo formato `.cxbk` (SQLite criptografado): backups são
+  intercambiáveis entre a loja e a nuvem. Restauração no PostgreSQL numa única transação.
+- Publicação no **Render + Neon** (grátis): `render.yaml`, `docs/PUBLICAR_RENDER_NEON.md`,
+  endereço `/saude` (não consulta o banco), senha do backup por variável `CAIXA_SENHA_BACKUP`,
+  porta via `PORT`, extra opcional `.[nuvem]` (psycopg 3.3).
+- Mensagem clara quando o banco externo está fora do ar (ex.: cota gratuita esgotada).
+
+### Alterado
+- Com banco externo, o agendador de backup não roda (manteria o Neon sempre ligado).
+- Migrações: condições escritas com `IS DISTINCT FROM` e booleanos portáveis (sem mudança de
+  comportamento no SQLite).
+
 ## [1.2.0] - 2026-10-15
 
 ### Adicionado

@@ -34,6 +34,10 @@
   <h3>1. Senha do backup {% if b.senha_definida %}<span class="etiqueta etiqueta-verde">definida</span>{% else %}<span class="etiqueta etiqueta-amarela">não definida</span>{% endif %}</h3>
   <p class="dica">Os backups são criptografados com esta senha. <strong>Anote-a em papel e guarde fora da loja.</strong>
      Sem ela, nenhum backup pode ser aberto. Se trocar a senha, os backups antigos continuam abrindo só com a senha antiga.</p>
+  {% if senha_no_servidor %}
+  <p class="dica">Definida no painel do servidor (variável <code>CAIXA_SENHA_BACKUP</code> no Render).
+     Para trocar, altere lá e baixe um backup novo.</p>
+  {% else %}
   <form method="post" action="/configuracoes/backup/senha" class="formulario estreito-esquerda">
     <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
     <label>Nova senha do backup (mínimo 8 caracteres)
@@ -47,6 +51,7 @@
     </label>
     <button type="submit" class="botao">Salvar senha do backup</button>
   </form>
+  {% endif %}
 
   <h3>2. Onde guardar e quando</h3>
   <p class="dica">Recomendado: uma pasta sincronizada com a nuvem (Google Drive ou OneDrive) <strong>e</strong> um pendrive.

@@ -18,7 +18,8 @@ COPY app ./app
 COPY migrations ./migrations
 COPY alembic.ini ./
 COPY scripts ./scripts
-RUN pip install -c constraints.txt -e . \
+# [nuvem] inclui o driver do PostgreSQL (Render + Neon); inofensivo quando o banco é SQLite.
+RUN pip install -c constraints.txt -e ".[nuvem]" \
     && useradd --system --uid 1000 --home /dados caixa \
     && mkdir -p /dados/backups \
     && chown -R caixa:caixa /dados
@@ -28,7 +29,8 @@ USER caixa
 VOLUME ["/dados"]
 EXPOSE 8765
 
+# /saude não consulta o banco (não acorda o Neon). Porta: PORT (Render) ou 8765.
 HEALTHCHECK --interval=60s --timeout=5s --start-period=30s \
-    CMD python -c "import urllib.request as u; u.urlopen(u.Request('http://localhost:8765/login'), timeout=4)"
+    CMD python -c "import os,urllib.request as u; u.urlopen('http://localhost:%s/saude' % os.environ.get('PORT', '8765'), timeout=4)"
 
 CMD ["python", "-m", "app"]

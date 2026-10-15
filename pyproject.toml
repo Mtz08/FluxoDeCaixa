@@ -10,7 +10,7 @@ app = ["templates/**/*", "static/**/*"]
 
 [project]
 name = "caixa-papelaria"
-version = "1.2.0"
+version = "1.3.0"
 description = "Controle de caixa e fiado para papelaria (uso local, sem internet)"
 requires-python = ">=3.12"
 dependencies = [
@@ -29,6 +29,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+nuvem = [
+    "psycopg[binary]==3.3.*",  # PostgreSQL (Neon) para a publicação no Render
+]
 dev = [
     "pytest==8.3.*",
     "pytest-cov==6.0.*",

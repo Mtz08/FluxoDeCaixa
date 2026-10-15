@@ -19,6 +19,14 @@ def _dir_dados_padrao() -> Path:
     return Path(base) / "CaixaPapelaria"
 
 
+def normalizar_url_postgres(url: str) -> str:
+    """postgres://... ou postgresql://... (formato do Neon/Render) -> driver psycopg."""
+    for prefixo in ("postgres://", "postgresql://"):
+        if url.startswith(prefixo):
+            return "postgresql+psycopg://" + url[len(prefixo) :]
+    return url
+
+
 def _int_env(nome: str, padrao: int) -> int:
     valor = os.environ.get(nome)
     return int(valor) if valor else padrao
@@ -44,6 +52,8 @@ class Config:
     cookies_seguros: bool = False  # cookies só por HTTPS (+ HSTS)
     atras_de_proxy: bool = False  # IP real do visitante vem do proxy (Caddy)
     pasta_backup_padrao: str | None = None  # pasta de backup quando a dona não configurar outra
+    # Banco externo (Postgres, ex.: Neon). Sem ele, usa o SQLite local (caixa.db).
+    url_banco_externo: str | None = None
 
     @property
     def modo_nuvem(self) -> bool:
@@ -54,7 +64,13 @@ class Config:
         return self.dir_dados / "caixa.db"
 
     @property
+    def banco_externo(self) -> bool:
+        return self.url_banco_externo is not None
+
+    @property
     def url_banco(self) -> str:
+        if self.url_banco_externo:
+            return normalizar_url_postgres(self.url_banco_externo)
         return f"sqlite:///{self.caminho_banco.as_posix()}"
 
     @property
@@ -67,7 +83,8 @@ def obter_config() -> Config:
     dir_env = os.environ.get("CAIXA_DIR_DADOS")
     return Config(
         dir_dados=Path(dir_env) if dir_env else _dir_dados_padrao(),
-        porta=_int_env("CAIXA_PORTA", 8765),
+        # Render (e outras plataformas) definem a porta em PORT.
+        porta=_int_env("PORT", _int_env("CAIXA_PORTA", 8765)),
         sessao_minutos=_int_env("CAIXA_SESSAO_MINUTOS", 30),
         modo_dev=os.environ.get("CAIXA_MODO_DEV") == "1",
         nome_loja=os.environ.get("CAIXA_NOME_LOJA", "Papelaria"),
@@ -78,4 +95,5 @@ def obter_config() -> Config:
         cookies_seguros=os.environ.get("CAIXA_COOKIES_SEGUROS") == "1",
         atras_de_proxy=os.environ.get("CAIXA_ATRAS_DE_PROXY") == "1",
         pasta_backup_padrao=os.environ.get("CAIXA_PASTA_BACKUP") or None,
+        url_banco_externo=os.environ.get("CAIXA_DATABASE_URL") or None,
     )

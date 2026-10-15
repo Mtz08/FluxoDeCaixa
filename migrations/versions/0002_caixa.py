@@ -10,6 +10,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
+from app.core import gatilhos
+
 revision: str = "0002"
 down_revision: str | None = "0001"
 branch_labels: str | Sequence[str] | None = None
@@ -112,7 +114,7 @@ def upgrade() -> None:
             "tipo <> 'saida' OR categoria_id IS NOT NULL", name="ck_movimento_caixa_categoria"
         ),
         sa.CheckConstraint(
-            "considera_gaveta = 1 OR tipo = 'estorno'", name="ck_movimento_caixa_gaveta"
+            "considera_gaveta OR tipo = 'estorno'", name="ck_movimento_caixa_gaveta"
         ),
     )
     op.create_index("ix_movimento_caixa_sessao", "movimento_caixa", ["sessao_id"])
@@ -155,12 +157,22 @@ def upgrade() -> None:
     )
 
 
-def _trigger(nome: str, momento: str, tabela: str, mensagem: str, quando: str = "") -> None:
-    condicao = f"WHEN {quando}" if quando else ""
-    op.execute(
-        f"CREATE TRIGGER {nome} {momento} ON {tabela} {condicao} "
-        f"BEGIN SELECT RAISE(ABORT, '{mensagem}'); END"
-    )
+_trigger = gatilhos.bloquear  # gera a versão SQLite ou PostgreSQL
+
+# (nome, tabela) de todos os gatilhos desta migração, para o downgrade.
+GATILHOS = [
+    ("trg_movimento_caixa_sem_update", "movimento_caixa"),
+    ("trg_movimento_caixa_sem_delete", "movimento_caixa"),
+    ("trg_movimento_pagamento_sem_update", "movimento_pagamento"),
+    ("trg_movimento_pagamento_sem_delete", "movimento_pagamento"),
+    ("trg_forma_pagamento_sem_delete", "forma_pagamento"),
+    ("trg_categoria_despesa_sem_delete", "categoria_despesa"),
+    ("trg_sessao_caixa_sem_delete", "sessao_caixa"),
+    ("trg_sessao_caixa_so_fecha", "sessao_caixa"),
+    ("trg_movimento_caixa_sessao_aberta", "movimento_caixa"),
+    ("trg_movimento_pagamento_sessao_aberta", "movimento_pagamento"),
+    ("trg_movimento_caixa_estorno_inverso", "movimento_caixa"),
+]
 
 
 def _criar_triggers() -> None:
@@ -182,9 +194,9 @@ def _criar_triggers() -> None:
         "sessao_caixa",
         "caixa so pode ser fechado uma vez e a abertura nao muda",
         "OLD.status <> 'aberta' OR NEW.status <> 'fechada'"
-        " OR NEW.aberta_por IS NOT OLD.aberta_por OR NEW.aberta_em IS NOT OLD.aberta_em"
-        " OR NEW.fundo_troco_centavos IS NOT OLD.fundo_troco_centavos"
-        " OR NEW.chave_idempotencia IS NOT OLD.chave_idempotencia",
+        " OR NEW.aberta_por IS DISTINCT FROM OLD.aberta_por OR NEW.aberta_em IS DISTINCT FROM OLD.aberta_em"
+        " OR NEW.fundo_troco_centavos IS DISTINCT FROM OLD.fundo_troco_centavos"
+        " OR NEW.chave_idempotencia IS DISTINCT FROM OLD.chave_idempotencia",
     )
 
     # Caixa fechado não aceita lançamentos.
@@ -193,7 +205,7 @@ def _criar_triggers() -> None:
         "BEFORE INSERT",
         "movimento_caixa",
         "caixa fechado nao aceita lancamentos",
-        "(SELECT status FROM sessao_caixa WHERE id = NEW.sessao_id) IS NOT 'aberta'",
+        "(SELECT status FROM sessao_caixa WHERE id = NEW.sessao_id) IS DISTINCT FROM 'aberta'",
     )
     _trigger(
         "trg_movimento_pagamento_sessao_aberta",
@@ -201,7 +213,7 @@ def _criar_triggers() -> None:
         "movimento_pagamento",
         "caixa fechado nao aceita lancamentos",
         "(SELECT s.status FROM movimento_caixa m JOIN sessao_caixa s ON s.id = m.sessao_id"
-        " WHERE m.id = NEW.movimento_id) IS NOT 'aberta'",
+        " WHERE m.id = NEW.movimento_id) IS DISTINCT FROM 'aberta'",
     )
 
     # Estorno é o inverso exato do original, e não se estorna um estorno.
@@ -211,24 +223,16 @@ def _criar_triggers() -> None:
         "movimento_caixa",
         "estorno deve ser o inverso exato do original",
         "NEW.tipo = 'estorno' AND ("
-        "(SELECT sinal FROM movimento_caixa WHERE id = NEW.estorno_de_id) IS NOT -NEW.sinal"
+        "(SELECT sinal FROM movimento_caixa WHERE id = NEW.estorno_de_id) IS DISTINCT FROM -NEW.sinal"
         " OR (SELECT valor_centavos FROM movimento_caixa WHERE id = NEW.estorno_de_id)"
-        " IS NOT NEW.valor_centavos"
+        " IS DISTINCT FROM NEW.valor_centavos"
         " OR (SELECT tipo FROM movimento_caixa WHERE id = NEW.estorno_de_id) = 'estorno')",
     )
 
 
 def downgrade() -> None:
-    conexao = op.get_bind()
-    triggers = conexao.execute(
-        sa.text(
-            "SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name IN "
-            "('movimento_caixa','movimento_pagamento','forma_pagamento',"
-            "'categoria_despesa','sessao_caixa')"
-        )
-    ).scalars()
-    for nome in list(triggers):
-        op.execute(f"DROP TRIGGER IF EXISTS {nome}")
+    for nome, tabela in GATILHOS:
+        gatilhos.remover(nome, tabela)
     op.drop_table("movimento_pagamento")
     op.drop_table("movimento_caixa")
     op.execute("DROP INDEX IF EXISTS ux_sessao_caixa_uma_aberta")

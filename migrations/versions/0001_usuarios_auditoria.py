@@ -10,6 +10,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
+from app.core import gatilhos
+
 revision: str = "0001"
 down_revision: str | None = None
 branch_labels: str | Sequence[str] | None = None
@@ -62,31 +64,25 @@ def upgrade() -> None:
     op.create_index("ix_auditoria_entidade", "auditoria", ["entidade", "entidade_id"])
 
     # Auditoria é só inserção: o próprio banco recusa alteração e exclusão.
-    op.execute(
-        """
-        CREATE TRIGGER trg_auditoria_sem_update BEFORE UPDATE ON auditoria
-        BEGIN SELECT RAISE(ABORT, 'auditoria nao pode ser alterada'); END
-        """
+    gatilhos.bloquear(
+        "trg_auditoria_sem_update", "BEFORE UPDATE", "auditoria", "auditoria nao pode ser alterada"
     )
-    op.execute(
-        """
-        CREATE TRIGGER trg_auditoria_sem_delete BEFORE DELETE ON auditoria
-        BEGIN SELECT RAISE(ABORT, 'auditoria nao pode ser apagada'); END
-        """
+    gatilhos.bloquear(
+        "trg_auditoria_sem_delete", "BEFORE DELETE", "auditoria", "auditoria nao pode ser apagada"
     )
     # Usuário com histórico nunca é apagado: desativar (soft delete).
-    op.execute(
-        """
-        CREATE TRIGGER trg_usuario_sem_delete BEFORE DELETE ON usuario
-        BEGIN SELECT RAISE(ABORT, 'usuario nao pode ser apagado; desative'); END
-        """
+    gatilhos.bloquear(
+        "trg_usuario_sem_delete",
+        "BEFORE DELETE",
+        "usuario",
+        "usuario nao pode ser apagado; desative",
     )
 
 
 def downgrade() -> None:
-    op.execute("DROP TRIGGER IF EXISTS trg_usuario_sem_delete")
-    op.execute("DROP TRIGGER IF EXISTS trg_auditoria_sem_delete")
-    op.execute("DROP TRIGGER IF EXISTS trg_auditoria_sem_update")
+    gatilhos.remover("trg_usuario_sem_delete", "usuario")
+    gatilhos.remover("trg_auditoria_sem_delete", "auditoria")
+    gatilhos.remover("trg_auditoria_sem_update", "auditoria")
     op.drop_table("auditoria")
     op.drop_table("sessao_login")
     op.drop_table("usuario")

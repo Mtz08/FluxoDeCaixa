@@ -10,6 +10,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
+from app.core import gatilhos
+
 revision: str = "0004"
 down_revision: str | None = "0003"
 branch_labels: str | Sequence[str] | None = None
@@ -44,9 +46,11 @@ def upgrade() -> None:
         ),
     )
     op.create_index("ix_backup_registro_criado_em", "backup_registro", ["criado_em"])
-    op.execute(
-        "CREATE TRIGGER trg_backup_registro_sem_update BEFORE UPDATE ON backup_registro"
-        " BEGIN SELECT RAISE(ABORT, 'registro de backup nao pode ser alterado'); END"
+    gatilhos.bloquear(
+        "trg_backup_registro_sem_update",
+        "BEFORE UPDATE",
+        "backup_registro",
+        "registro de backup nao pode ser alterado",
     )
 
     # Campos opcionais (desligados por padrão: minimização de dados, LGPD).
@@ -58,6 +62,6 @@ def downgrade() -> None:
     with op.batch_alter_table("cliente") as lote:
         lote.drop_column("endereco")
         lote.drop_column("cpf")
-    op.execute("DROP TRIGGER IF EXISTS trg_backup_registro_sem_update")
+    gatilhos.remover("trg_backup_registro_sem_update", "backup_registro")
     op.drop_table("backup_registro")
     op.drop_table("configuracao")

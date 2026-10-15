@@ -22,6 +22,9 @@ def rodar(
 ) -> subprocess.CompletedProcess[str]:
     ambiente = os.environ | {"CAIXA_DIR_DADOS": str(cfg.dir_dados), "PYTHONIOENCODING": "utf-8"}
     ambiente.pop("CAIXA_MODO_DEV", None)
+    ambiente.pop("CAIXA_DATABASE_URL", None)
+    if cfg.url_banco_externo:  # testes no PostgreSQL: os scripts usam o mesmo banco
+        ambiente["CAIXA_DATABASE_URL"] = cfg.url_banco_externo
     ambiente |= env
     return subprocess.run(  # noqa: S603
         [sys.executable, str(RAIZ / "scripts" / script)],

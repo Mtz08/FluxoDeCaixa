@@ -1,5 +1,5 @@
-# Versões EXATAS testadas (geradas de um ambiente limpo com "pip install ." + "pip freeze").
-# O instalar.bat usa este arquivo para a loja receber exatamente o que foi testado.
+# Versões EXATAS testadas (geradas de um ambiente limpo com "pip install .[nuvem]" + "pip freeze").
+# O instalar.bat (loja) e o Render (nuvem) usam este arquivo: recebem exatamente o que foi testado.
 # Para atualizar: recrie o ambiente limpo, rode os testes, rode pip-audit e gere de novo.
 alembic==1.20.0
 annotated-doc==0.0.5
@@ -11,7 +11,7 @@ cffi==2.1.1
 click==8.5.0
 cryptography==50.0.2
 defusedxml==0.7.1
-fastapi==0.143.1
+fastapi==0.143.2
 fonttools==4.67.0
 fpdf2==2.8.9
 greenlet==3.5.6
@@ -22,6 +22,8 @@ Mako==1.4.3
 MarkupSafe==3.0.4
 opentelemetry-api==1.45.1
 pillow==12.3.0
+psycopg==3.3.6
+psycopg-binary==3.3.6
 pycparser==3.11
 pydantic==2.14.1
 pydantic_core==2.50.1

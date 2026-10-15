@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
 import shutil
+import uuid
 from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -23,21 +26,55 @@ SENHA_ADMIN = "senha-admin-1"
 SENHA_OPERADOR = "senha-oper-1"
 
 
+# Para rodar a bateria no PostgreSQL:  set CAIXA_TESTE_POSTGRES=postgresql://usuario@host:porta
+# (servidor de TESTE: cada teste cria e apaga um banco próprio).
+POSTGRES_TESTE = os.environ.get("CAIXA_TESTE_POSTGRES", "").rstrip("/")
+MODELO_PG = "caixa_modelo_testes"
+
+
+def _admin_postgres(comando: str) -> None:
+    import psycopg  # só necessário nos testes com PostgreSQL
+
+    with psycopg.connect(f"{POSTGRES_TESTE}/postgres", autocommit=True) as conexao:
+        conexao.execute(comando)  # type: ignore[arg-type]
+
+
 @pytest.fixture(scope="session")
-def banco_modelo(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Migra uma vez e copia o arquivo para cada teste (mais rápido)."""
+def banco_modelo(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path | str]:
+    """Migra uma vez; cada teste recebe uma cópia (arquivo no SQLite, TEMPLATE no Postgres)."""
     pasta = tmp_path_factory.mktemp("modelo")
-    engine = criar_engine(Config(dir_dados=pasta))
+    if POSTGRES_TESTE:
+        _admin_postgres(f"DROP DATABASE IF EXISTS {MODELO_PG} WITH (FORCE)")
+        _admin_postgres(f"CREATE DATABASE {MODELO_PG}")
+        cfg = Config(dir_dados=pasta, url_banco_externo=f"{POSTGRES_TESTE}/{MODELO_PG}")
+    else:
+        cfg = Config(dir_dados=pasta)
+    engine = criar_engine(cfg)
     migrar(engine)
     engine.dispose()
-    return pasta / "caixa.db"
+    yield MODELO_PG if POSTGRES_TESTE else pasta / "caixa.db"
+    if POSTGRES_TESTE:
+        _admin_postgres(f"DROP DATABASE IF EXISTS {MODELO_PG} WITH (FORCE)")
 
 
 @pytest.fixture
-def cfg(tmp_path: Path, banco_modelo: Path) -> Config:
-    shutil.copy(banco_modelo, tmp_path / "caixa.db")
+def cfg(tmp_path: Path, banco_modelo: Path | str) -> Iterator[Config]:
     # "testserver" é o Host usado pelo TestClient.
-    return Config(dir_dados=tmp_path, agendar_backup=False, hosts_extras=("testserver",))
+    base = Config(dir_dados=tmp_path, agendar_backup=False, hosts_extras=("testserver",))
+    if not POSTGRES_TESTE:
+        shutil.copy(banco_modelo, tmp_path / "caixa.db")
+        yield base
+        return
+    nome = f"caixa_t_{uuid.uuid4().hex[:12]}"
+    _admin_postgres(f"CREATE DATABASE {nome} TEMPLATE {banco_modelo}")
+    try:
+        yield replace(base, url_banco_externo=f"{POSTGRES_TESTE}/{nome}")
+    finally:
+        _admin_postgres(f"DROP DATABASE IF EXISTS {nome} WITH (FORCE)")
+
+
+def so_sqlite(motivo: str) -> pytest.MarkDecorator:
+    return pytest.mark.skipif(bool(POSTGRES_TESTE), reason=f"só no SQLite: {motivo}")
 
 
 @pytest.fixture

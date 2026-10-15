@@ -10,6 +10,8 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 from alembic import op
 
+from app.core import gatilhos
+
 revision: str = "0003"
 down_revision: str | None = "0002"
 branch_labels: str | Sequence[str] | None = None
@@ -100,43 +102,49 @@ def upgrade() -> None:
     op.create_index("ix_fiado_lancamento_data", "fiado_lancamento", ["data_referencia"])
 
     for momento, verbo in (("UPDATE", "alterado"), ("DELETE", "apagado")):
-        op.execute(
-            f"CREATE TRIGGER trg_fiado_lancamento_sem_{momento.lower()} BEFORE {momento}"
-            f" ON fiado_lancamento BEGIN SELECT RAISE(ABORT,"
-            f" 'lancamento de fiado nao pode ser {verbo}'); END"
+        gatilhos.bloquear(
+            f"trg_fiado_lancamento_sem_{momento.lower()}",
+            f"BEFORE {momento}",
+            "fiado_lancamento",
+            f"lancamento de fiado nao pode ser {verbo}",
         )
-    op.execute(
-        "CREATE TRIGGER trg_cliente_sem_delete BEFORE DELETE ON cliente BEGIN"
-        " SELECT RAISE(ABORT, 'cliente nao pode ser apagado; desative ou anonimize'); END"
+    gatilhos.bloquear(
+        "trg_cliente_sem_delete",
+        "BEFORE DELETE",
+        "cliente",
+        "cliente nao pode ser apagado; desative ou anonimize",
     )
-    op.execute(
-        "CREATE TRIGGER trg_fiado_lancamento_estorno_inverso BEFORE INSERT ON fiado_lancamento"
-        " WHEN NEW.tipo = 'estorno' AND ("
-        "(SELECT sinal FROM fiado_lancamento WHERE id = NEW.estorno_de_id) IS NOT -NEW.sinal"
+    gatilhos.bloquear(
+        "trg_fiado_lancamento_estorno_inverso",
+        "BEFORE INSERT",
+        "fiado_lancamento",
+        "estorno deve ser o inverso exato do original",
+        "NEW.tipo = 'estorno' AND ("
+        "(SELECT sinal FROM fiado_lancamento WHERE id = NEW.estorno_de_id)"
+        " IS DISTINCT FROM -NEW.sinal"
         " OR (SELECT valor_centavos FROM fiado_lancamento WHERE id = NEW.estorno_de_id)"
-        " IS NOT NEW.valor_centavos"
+        " IS DISTINCT FROM NEW.valor_centavos"
         " OR (SELECT cliente_id FROM fiado_lancamento WHERE id = NEW.estorno_de_id)"
-        " IS NOT NEW.cliente_id"
-        " OR (SELECT tipo FROM fiado_lancamento WHERE id = NEW.estorno_de_id) = 'estorno')"
-        " BEGIN SELECT RAISE(ABORT, 'estorno deve ser o inverso exato do original'); END"
+        " IS DISTINCT FROM NEW.cliente_id"
+        " OR (SELECT tipo FROM fiado_lancamento WHERE id = NEW.estorno_de_id) = 'estorno')",
     )
 
     # Categoria usada pela saída de caixa da devolução de crédito ao cliente.
     op.execute(
-        sa.text("INSERT INTO categoria_despesa (nome, ativo) VALUES (:nome, 1)").bindparams(
+        sa.text("INSERT INTO categoria_despesa (nome, ativo) VALUES (:nome, TRUE)").bindparams(
             nome=CATEGORIA_DEVOLUCAO
         )
     )
 
 
 def downgrade() -> None:
-    for nome in (
-        "trg_fiado_lancamento_estorno_inverso",
-        "trg_cliente_sem_delete",
-        "trg_fiado_lancamento_sem_delete",
-        "trg_fiado_lancamento_sem_update",
+    for nome, tabela in (
+        ("trg_fiado_lancamento_estorno_inverso", "fiado_lancamento"),
+        ("trg_cliente_sem_delete", "cliente"),
+        ("trg_fiado_lancamento_sem_delete", "fiado_lancamento"),
+        ("trg_fiado_lancamento_sem_update", "fiado_lancamento"),
     ):
-        op.execute(f"DROP TRIGGER IF EXISTS {nome}")
+        gatilhos.remover(nome, tabela)
     op.drop_table("fiado_lancamento")
     op.drop_table("cliente")
     # A categoria fica (pode haver saídas no caixa apontando para ela).

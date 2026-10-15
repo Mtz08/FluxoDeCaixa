@@ -23,7 +23,8 @@ def principal() -> int:
         migrar(engine)
     finally:
         engine.dispose()
-    print(f"OK: banco pronto em {cfg.caminho_banco}")
+    onde = "PostgreSQL (CAIXA_DATABASE_URL)" if cfg.banco_externo else str(cfg.caminho_banco)
+    print(f"OK: banco pronto em {onde}")
     return 0
 
 

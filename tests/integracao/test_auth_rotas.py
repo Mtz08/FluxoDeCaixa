@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.seguranca import COOKIE_SESSAO
 from app.modules.auth.models import Usuario
-from tests.conftest import SENHA_ADMIN, SENHA_OPERADOR, entrar, postar
+from tests.conftest import SENHA_ADMIN, SENHA_OPERADOR, entrar, postar, so_sqlite
 
 
 def test_sem_usuarios_tudo_leva_ao_primeiro_acesso(cliente: TestClient) -> None:
@@ -163,6 +163,7 @@ def test_documentacao_da_api_nao_exposta(cliente: TestClient) -> None:
     assert cliente.get("/openapi.json").status_code == 404
 
 
+@so_sqlite("PRAGMAs são do SQLite")
 def test_pragmas_do_banco(db: Session) -> None:
     assert db.execute(text("PRAGMA journal_mode")).scalar() == "wal"
     assert db.execute(text("PRAGMA foreign_keys")).scalar() == 1

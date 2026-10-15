@@ -1,0 +1,28 @@
+# Render (plano gratuito) + banco PostgreSQL no Neon (plano gratuito).
+# Roteiro completo: docs/PUBLICAR_RENDER_NEON.md
+services:
+  - type: web
+    name: caixa-papelaria
+    runtime: docker
+    plan: free
+    region: virginia            # mesma região do Neon (AWS US East / N. Virginia)
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /saude     # não consulta o banco (não gasta a cota do Neon)
+    autoDeploy: true
+    envVars:
+      # --- preencher no painel do Render (valores secretos) ---
+      - key: CAIXA_DATABASE_URL     # "connection string" do Neon (sem pooler)
+        sync: false
+      - key: CAIXA_SENHA_BACKUP     # senha dos backups (mínimo 8 caracteres) — ANOTE EM PAPEL
+        sync: false
+      - key: CAIXA_URL_PUBLICA      # ex.: https://caixa-papelaria.onrender.com
+        sync: false
+      # --- fixos ---
+      - key: CAIXA_COOKIES_SEGUROS
+        value: "1"
+      - key: CAIXA_ATRAS_DE_PROXY
+        value: "1"
+      - key: CAIXA_PASTA_BACKUP     # vazio: no Render os arquivos somem; o backup é o "Baixar backup"
+        value: ""
+      - key: CAIXA_NOME_LOJA
+        value: Papelaria

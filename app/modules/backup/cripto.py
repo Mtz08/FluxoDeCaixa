@@ -111,7 +111,14 @@ def guardar_senha(pasta_dados: Path, senha: str) -> None:
     os.replace(temporario, pasta_dados / ARQUIVO_SENHA)
 
 
+def senha_no_ambiente() -> str | None:
+    """Na nuvem (Render), a senha vem de uma variável secreta: lá os arquivos não ficam."""
+    return os.environ.get("CAIXA_SENHA_BACKUP") or None
+
+
 def ler_senha(pasta_dados: Path) -> str | None:
+    if (senha := senha_no_ambiente()) is not None:
+        return senha
     arquivo = pasta_dados / ARQUIVO_SENHA
     if not arquivo.exists():
         return None

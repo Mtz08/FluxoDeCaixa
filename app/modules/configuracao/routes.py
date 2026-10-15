@@ -42,6 +42,7 @@ def _contexto(db: Session, cfg: Config, request: Request) -> dict[str, Any]:
         "qr_remoto": service.qr_code(remotos[0]) if remotos else None,
         "pasta_dados": str(base.dir_dados),
         "modo_nuvem": base.modo_nuvem,
+        "senha_no_servidor": cripto.senha_no_ambiente() is not None,
     }
 
 
@@ -161,6 +162,13 @@ def senha_backup(
     db: Session = Depends(obter_db),
     cfg: Config = Depends(obter_cfg),
 ) -> Response:
+    if cripto.senha_no_ambiente() is not None:
+        return _voltar(
+            request,
+            "A senha do backup é definida no painel do servidor (Render).",
+            "backup",
+            erro=True,
+        )
     try:
         # Trocar a senha do backup exige confirmar a senha do próprio administrador.
         auth_service.autorizar_admin(db, cfg, admin.login, senha_admin, ip_cliente(request))

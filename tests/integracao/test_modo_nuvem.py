@@ -106,3 +106,48 @@ def test_baixar_backup_e_alerta_semanal(
     db.expire_all()
     alerta = backup.alerta(db, cfg_nuvem) or ""
     assert "Baixe uma cópia" not in alerta and "baixada" not in alerta
+
+
+# ---------------------------------------------------------------- Render + Neon
+
+
+def test_saude_responde_sem_banco_e_com_qualquer_host(site: TestClient) -> None:
+    for host in (DOMINIO, "10.0.0.7:10000", "qualquer-coisa"):
+        resposta = site.get("/saude", headers={"Host": host})
+        assert resposta.status_code == 200 and resposta.text == "ok"
+
+
+def test_senha_do_backup_por_variavel_de_ambiente(
+    site: TestClient,
+    db: Session,
+    cfg_nuvem: Config,
+    admin: Usuario,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("CAIXA_SENHA_BACKUP", "senha-no-render-1")
+    assert cripto.ler_senha(cfg_nuvem.dir_dados) == "senha-no-render-1"
+    assert backup.situacao(db, cfg_nuvem).senha_definida
+    db.rollback()
+    entrar(site, "maria", SENHA_ADMIN)
+    pagina = site.get("/configuracoes").text
+    assert "CAIXA_SENHA_BACKUP" in pagina and 'name="nova"' not in pagina
+    postar(
+        site,
+        "/configuracoes/backup/senha",
+        {"nova": "outra-senha-1", "confirmacao": "outra-senha-1", "senha_admin": SENHA_ADMIN},
+    )
+    assert "definida no painel do servidor" in site.get("/configuracoes").text
+    arquivo = site.get("/backup/baixar")
+    assert cripto.decifrar(arquivo.content, "senha-no-render-1").startswith(b"SQLite format 3")
+
+
+def test_mensagem_clara_quando_o_banco_externo_cai(cfg_nuvem: Config, tmp_path: Path) -> None:
+    fora_do_ar = replace(
+        cfg_nuvem,
+        dir_dados=tmp_path / "render",
+        url_banco_externo="postgresql://ninguem@127.0.0.1:1/inexistente?connect_timeout=1",
+    )
+    with TestClient(criar_app(fora_do_ar), base_url=f"https://{DOMINIO}") as cliente:
+        resposta = cliente.get("/login")
+    assert resposta.status_code == 503
+    assert "Não foi possível falar com o banco de dados" in resposta.text

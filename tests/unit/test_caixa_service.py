@@ -396,7 +396,7 @@ def test_banco_recusa_lancamento_em_caixa_fechado(db: Session, operador: Usuario
             text(
                 "INSERT INTO movimento_caixa (sessao_id, tipo, sinal, valor_centavos, usuario_id,"
                 " considera_gaveta, origem, chave_idempotencia, criado_em)"
-                " VALUES (:s, 'entrada', 1, 100, :u, 1, 'manual', 'k', '2026-01-01 00:00:00')"
+                " VALUES (:s, 'entrada', 1, 100, :u, TRUE, 'manual', 'k', '2026-01-01 00:00:00')"
             ),
             {"s": sessao.id, "u": operador.id},
         )
@@ -426,7 +426,8 @@ def test_banco_recusa_estorno_que_nao_e_inverso(db: Session, admin: Usuario) -> 
             text(
                 "INSERT INTO movimento_caixa (sessao_id, tipo, sinal, valor_centavos, usuario_id,"
                 " estorno_de_id, considera_gaveta, origem, chave_idempotencia, criado_em)"
-                " VALUES (:s, 'estorno', -1, 999, :u, :o, 1, 'manual', 'k', '2026-01-01 00:00:00')"
+                " VALUES (:s, 'estorno', -1, 999, :u, :o, TRUE, 'manual', 'k',"
+                " '2026-01-01 00:00:00')"
             ),
             {"s": sessao.id, "u": admin.id, "o": mov.id},
         )
@@ -435,12 +436,12 @@ def test_banco_recusa_estorno_que_nao_e_inverso(db: Session, admin: Usuario) -> 
 
 def test_banco_recusa_valor_zero_ou_negativo(db: Session, operador: Usuario) -> None:
     sessao = abrir(db, operador)
-    with pytest.raises(IntegrityError, match="CHECK"):
+    with pytest.raises(IntegrityError, match="(?i)check"):
         db.execute(
             text(
                 "INSERT INTO movimento_caixa (sessao_id, tipo, sinal, valor_centavos, usuario_id,"
                 " considera_gaveta, origem, chave_idempotencia, criado_em)"
-                " VALUES (:s, 'entrada', 1, -5, :u, 1, 'manual', 'k', '2026-01-01 00:00:00')"
+                " VALUES (:s, 'entrada', 1, -5, :u, TRUE, 'manual', 'k', '2026-01-01 00:00:00')"
             ),
             {"s": sessao.id, "u": operador.id},
         )

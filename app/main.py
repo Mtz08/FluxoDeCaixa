@@ -49,16 +49,24 @@ def criar_app(cfg: Config | None = None) -> FastAPI:
     @asynccontextmanager
     async def ciclo_de_vida(app: FastAPI) -> AsyncIterator[None]:
         configurar_logs(cfg)
-        problemas = verificar_integridade(app.state.engine)
-        app.state.banco_corrompido = bool(problemas)
-        if problemas:
-            log.error("Banco com problema de integridade: %s", problemas[:5])
-        else:
-            # Atualizações do sistema ajustam o banco sozinhas, sem perder dados.
-            migrar(app.state.engine)
+        try:
+            problemas = verificar_integridade(app.state.engine)
+            app.state.banco_corrompido = bool(problemas)
+            if problemas:
+                log.error("Banco com problema de integridade: %s", problemas[:5])
+            else:
+                # Atualizações do sistema ajustam o banco sozinhas, sem perder dados.
+                migrar(app.state.engine)
+        except OperationalError:
+            # Banco externo fora do ar (ex.: Neon): o sistema sobe e mostra uma mensagem clara
+            # em cada tela até o banco voltar; as migrações rodam no próximo início.
+            log.exception("Banco de dados indisponível ao iniciar")
         if cfg.pasta_backup_padrao:
             Path(cfg.pasta_backup_padrao).mkdir(parents=True, exist_ok=True)
-        tarefa = asyncio.create_task(agendador.rodar(app)) if cfg.agendar_backup else None
+        # Com banco externo o agendador NÃO roda: ele consulta o banco a cada minuto e
+        # manteria o Neon sempre ligado (gastando a cota gratuita).
+        agendar = cfg.agendar_backup and not cfg.banco_externo
+        tarefa = asyncio.create_task(agendador.rodar(app)) if agendar else None
         log.info("Sistema iniciado")
         yield
         if tarefa is not None:
@@ -99,6 +107,10 @@ def _registrar_middlewares(app: FastAPI) -> None:
     async def seguranca_basica(
         request: Request, chamar: Callable[[Request], Awaitable[Response]]
     ) -> Response:
+        if request.url.path == "/saude":
+            # Verificação de funcionamento (Render, "acordador"): NÃO toca no banco, para
+            # não acordar o Neon à toa, e não revela nada.
+            return PlainTextResponse("ok")
         if not host_permitido(request.headers.get("host", ""), app.state.config):
             # Proteção contra "DNS rebinding": só atende pelo nome/IP local da loja.
             return PlainTextResponse("Endereço não permitido.", status_code=400)
@@ -128,6 +140,11 @@ def _registrar_middlewares(app: FastAPI) -> None:
         return resposta
 
 
+def _foi_espera_de_trava(erro: Exception) -> bool:
+    """PostgreSQL: estourou o tempo de espera pela vez de gravar (não é banco fora do ar)."""
+    return "lock timeout" in str(erro).lower() or "lock_timeout" in str(erro).lower()
+
+
 def _registrar_tratamento_erros(app: FastAPI) -> None:
     @app.exception_handler(SemUsuarios)
     async def _sem_usuarios(request: Request, _erro: Exception) -> Response:
@@ -153,9 +170,16 @@ def _registrar_tratamento_erros(app: FastAPI) -> None:
 
     @app.exception_handler(OperationalError)
     async def _banco_ocupado(request: Request, erro: Exception) -> Response:
-        # Ex.: "database is locked" quando PC e celular gravam ao mesmo tempo.
+        # Ex.: "database is locked" quando PC e celular gravam ao mesmo tempo,
+        # ou banco externo (Neon) fora do ar / sem cota.
         log.warning("Erro operacional do banco: %s", type(erro).__name__)
         msg = "O sistema está ocupado. Nada foi gravado. Espere alguns segundos e tente de novo."
+        if app.state.config.banco_externo and not _foi_espera_de_trava(erro):
+            msg = (
+                "Não foi possível falar com o banco de dados. Nada foi gravado. Tente de novo "
+                "em alguns minutos; se continuar, avise o responsável (pode ser o limite "
+                "gratuito do mês do banco na nuvem)."
+            )
         return renderizar(request, "erro.html", {"mensagem": msg}, status=503)
 
     @app.exception_handler(ErroNegocio)
