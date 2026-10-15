@@ -83,10 +83,10 @@ def test_pasta_de_backup_padrao_e_qr_publico(
     db.rollback()  # libera o banco para o site (cada transação reserva a escrita)
     entrar(site, "maria", SENHA_ADMIN)
     pagina = site.get("/configuracoes").text
-    assert f"https://{DOMINIO}" in pagina and "Toda semana, baixe uma cópia" in pagina
+    assert f"https://{DOMINIO}" in pagina and "toda semana, baixe uma cópia do backup" in pagina
 
 
-def test_baixar_backup_e_alerta_semanal(
+def test_baixar_backup_sem_aviso_na_tela_inicial(
     site: TestClient, db: Session, cfg_nuvem: Config, admin: Usuario
 ) -> None:
     entrar(site, "maria", SENHA_ADMIN)
@@ -96,16 +96,19 @@ def test_baixar_backup_e_alerta_semanal(
     assert sem_senha.status_code == 303
 
     cripto.guardar_senha(cfg_nuvem.dir_dados, "senha-backup-123")
-    assert "Baixe uma cópia" in (backup.alerta(db, cfg_nuvem) or "")
-    db.rollback()  # libera o banco para o site
+    # Na nuvem, com senha definida, a tela inicial não mostra aviso de backup.
+    assert backup.alerta(db, cfg_nuvem) is None
+    db.rollback()
+    assert "Nenhuma cópia baixada ainda" in site.get("/configuracoes").text
+    inicio = site.get("/").text
+    assert "Baixe uma cópia" not in inicio and "não foi configurado" not in inicio
+
     arquivo = site.get("/backup/baixar")
     assert arquivo.status_code == 200
-    assert "attachment" in arquivo.headers["content-disposition"]
     assert "_baixado.cxbk" in arquivo.headers["content-disposition"]
     assert cripto.decifrar(arquivo.content, "senha-backup-123").startswith(b"SQLite format 3")
-    db.expire_all()
-    alerta = backup.alerta(db, cfg_nuvem) or ""
-    assert "Baixe uma cópia" not in alerta and "baixada" not in alerta
+    assert "Última cópia baixada" in site.get("/configuracoes").text
+    assert backup.alerta(db, cfg_nuvem) is None
 
 
 # ---------------------------------------------------------------- Render + Neon

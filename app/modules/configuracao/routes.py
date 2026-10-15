@@ -43,6 +43,7 @@ def _contexto(db: Session, cfg: Config, request: Request) -> dict[str, Any]:
         "pasta_dados": str(base.dir_dados),
         "modo_nuvem": base.modo_nuvem,
         "senha_no_servidor": cripto.senha_no_ambiente() is not None,
+        "ultimo_download": backup.ultimo_download(db),
     }
 
 

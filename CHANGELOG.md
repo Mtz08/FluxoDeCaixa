@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.4.1] - 2026-10-15
+
+### Alterado
+- Modo nuvem: o lembrete de "baixar o backup" saiu da tela inicial; a data da última cópia
+  baixada aparece em Configurações › Backup.
+
+### Corrigido
+- Modo nuvem: a tela inicial podia mostrar "O backup ainda não foi configurado" (não há pastas
+  de backup na nuvem).
+
 ## [1.4.0] - 2026-10-15
 
 ### Alterado

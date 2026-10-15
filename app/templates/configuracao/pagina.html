@@ -28,8 +28,10 @@
   </div>
 
   {% if modo_nuvem %}
-  <p class="aviso aviso-erro">☁ O sistema está na nuvem. <strong>Toda semana, baixe uma cópia do backup</strong> e guarde no
-     computador e no pendrive: se o servidor gratuito sumir, é essa cópia que salva os dados.</p>
+  <p class="dica">☁ Sistema na nuvem: <strong>toda semana, baixe uma cópia do backup</strong> e guarde no computador e no
+     pendrive — se o servidor gratuito sumir, é essa cópia que salva os dados.
+     {% if ultimo_download %}Última cópia baixada: <strong>{{ ultimo_download | data_hora }}</strong>.
+     {% else %}<strong>Nenhuma cópia baixada ainda.</strong>{% endif %}</p>
   {% endif %}
   <h3>1. Senha do backup {% if b.senha_definida %}<span class="etiqueta etiqueta-verde">definida</span>{% else %}<span class="etiqueta etiqueta-amarela">não definida</span>{% endif %}</h3>
   <p class="dica">Os backups são criptografados com esta senha. <strong>Anote-a em papel e guarde fora da loja.</strong>

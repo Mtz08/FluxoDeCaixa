@@ -273,9 +273,6 @@ def _executar(
 # ---------------------------------------------------------------- baixar cópia
 
 
-DIAS_ALERTA_DOWNLOAD = 7
-
-
 def gerar_para_download(
     cfg: Config, db: Session, admin: Usuario, ip: str | None
 ) -> tuple[str, bytes]:
@@ -340,19 +337,11 @@ def alerta(db: Session, cfg: Config) -> str | None:
     """Mensagem para a tela inicial, ou None se está tudo certo."""
     s = situacao(db, cfg)
     if cfg.modo_nuvem:
+        # Na nuvem não há pastas de backup: o backup é o "Baixar backup" (a data da última
+        # cópia aparece em Configurações → Backup, não na tela inicial).
         if not s.senha_definida:
             return "Defina a senha do backup em Configurações → Backup."
-        baixado = ultimo_download(db)
-        if baixado is None:
-            return (
-                "Baixe uma cópia do backup para o seu computador (Configurações → Baixar backup)."
-            )
-        dias = (agora_utc() - baixado).days
-        if dias >= DIAS_ALERTA_DOWNLOAD:
-            return (
-                f"A última cópia do backup baixada para o seu computador foi há {dias} dias. "
-                "Baixe uma nova."
-            )
+        return None
     if not s.configurado:
         return "O backup ainda não foi configurado. Vá em Configurações → Backup."
     if s.ultimo_ok is None:
