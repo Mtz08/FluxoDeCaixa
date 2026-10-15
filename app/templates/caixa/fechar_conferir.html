@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "caixa/_macros.html" import diferenca %}
+{% block titulo %}Conferência do caixa{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Conferência do caixa</h1>
+  <dl class="resumo-confirmacao">
+    <dt>Você contou</dt><dd>{{ conferencia.contado_centavos | reais }}</dd>
+    <dt>Resultado</dt><dd class="numero-grande">{{ diferenca(conferencia.diferenca_centavos) }}</dd>
+  </dl>
+
+  <form method="post" action="/caixa/fechar" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input type="hidden" name="sessao_id" value="{{ conferencia.sessao_id }}">
+    <input type="hidden" name="contado" value="{{ conferencia.contado_centavos | campo_moeda }}">
+    <input type="hidden" name="etapa" value="gravar">
+    {% if conferencia.diferenca_centavos != 0 %}
+    <label>Justificativa da diferença (obrigatória)
+      <textarea name="justificativa" rows="3" required minlength="5" maxlength="500" autofocus placeholder="ex.: troco dado a mais para cliente">{{ justificativa or '' }}</textarea>
+    </label>
+    {% endif %}
+    <p class="dica">Ao fechar, o caixa não aceita mais lançamentos nem alterações.</p>
+    <div class="acoes acoes-invertidas">
+      <button type="submit" class="botao botao-principal" {% if conferencia.diferenca_centavos == 0 %}autofocus{% endif %}>Fechar caixa definitivamente</button>
+      <a href="/caixa/fechar" class="botao">Recontar</a>
+    </div>
+  </form>
+  <p class="dica">Recontagens ficam registradas no histórico.</p>
+</section>
+{% endblock %}

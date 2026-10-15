@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Entrar{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Entrar</h1>
+  <form method="post" action="/login" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Usuário
+      <input name="login" value="{{ login or '' }}" required autofocus autocapitalize="none" autocomplete="username">
+    </label>
+    <label>Senha
+      <input name="senha" type="password" required autocomplete="current-password">
+    </label>
+    <button type="submit" class="botao botao-principal">Entrar</button>
+  </form>
+  <p class="dica">Esqueceu a senha? Peça ao administrador para redefinir.</p>
+</section>
+{% endblock %}

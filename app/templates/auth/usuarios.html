@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block titulo %}Usuários{% endblock %}
+{% block conteudo %}
+<section class="cartao">
+  <div class="titulo-com-acao">
+    <h1>Usuários</h1>
+    <a href="/usuarios/novo" class="botao botao-principal">+ Novo usuário</a>
+  </div>
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>Nome</th><th>Usuário</th><th>Perfil</th><th>Situação</th><th></th></tr></thead>
+    <tbody>
+    {% for u in usuarios %}
+      <tr>
+        <td>{{ u.nome }}</td>
+        <td>{{ u.login }}</td>
+        <td>{{ "Administrador" if u.eh_admin else "Operador" }}</td>
+        <td>
+          {% if not u.ativo %}<span class="etiqueta etiqueta-cinza">Inativo</span>
+          {% elif u.trocar_senha %}<span class="etiqueta etiqueta-amarela">Senha provisória</span>
+          {% else %}<span class="etiqueta etiqueta-verde">Ativo</span>{% endif %}
+        </td>
+        <td><a href="/usuarios/{{ u.id }}">Alterar</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

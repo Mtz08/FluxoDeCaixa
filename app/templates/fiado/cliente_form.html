@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block titulo %}{{ 'Alterar cliente' if cliente else 'Novo cliente' }}{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>{{ 'Alterar cliente' if cliente else 'Novo cliente' }}</h1>
+  <form method="post" action="{{ '/fiado/clientes/%d/editar' % cliente.id if cliente else '/fiado/clientes/novo' }}" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    {% if acao %}<input type="hidden" name="acao" value="{{ acao }}">{% endif %}
+    <label>Nome (obrigatório)
+      <input name="nome" value="{{ valores.get('nome', '') }}" required maxlength="80" autofocus>
+    </label>
+    <label>Apelido
+      <input name="apelido" value="{{ valores.get('apelido', '') }}" maxlength="40" placeholder="ex.: Tião">
+    </label>
+    <label>Telefone / WhatsApp
+      <input name="telefone" value="{{ valores.get('telefone', '') }}" inputmode="tel" placeholder="(11) 98888-7777">
+    </label>
+    {% if campos_extras %}
+    <label>CPF (opcional)
+      <input name="cpf" value="{{ valores.get('cpf', '') }}" inputmode="numeric" placeholder="000.000.000-00" maxlength="14">
+    </label>
+    <label>Endereço (opcional)
+      <input name="endereco" value="{{ valores.get('endereco', '') }}" maxlength="200">
+    </label>
+    {% endif %}
+    <label>Dia combinado de pagamento
+      <input name="dia_pagamento" value="{{ valores.get('dia_pagamento', '') }}" inputmode="numeric" placeholder="ex.: 10" maxlength="2">
+    </label>
+    {% if usuario.eh_admin %}
+    <label>Limite de crédito (deixe vazio para sem limite)
+      <input name="limite" value="{{ valores.get('limite', '') }}" data-moeda inputmode="numeric" autocomplete="off" placeholder="sem limite">
+    </label>
+    {% elif cliente and cliente.limite_centavos is not none %}
+    <p class="dica">Limite de crédito: {{ cliente.limite_centavos | reais }} (só o administrador altera).</p>
+    {% endif %}
+    <label>Observação
+      <textarea name="observacao" rows="2" maxlength="300">{{ valores.get('observacao', '') }}</textarea>
+    </label>
+
+    {% if not cliente %}
+    <label class="opcao"><input type="checkbox" name="consentimento" value="1" required {% if valores.get('consentimento') %}checked{% endif %}>
+      O cliente autorizou o cadastro dos seus dados (nome e telefone) para controle do fiado.</label>
+    <p class="dica">Coletamos só o necessário{% if not campos_extras %}: não pedimos CPF nem endereço{% endif %}.</p>
+    {% elif usuario.eh_admin %}
+    <label class="opcao"><input type="checkbox" name="ativo" value="1" {% if valores.get('ativo') %}checked{% endif %}> Cliente ativo</label>
+    {% else %}
+    <input type="hidden" name="ativo" value="1">
+    {% endif %}
+
+    <div class="acoes acoes-invertidas">
+      <button type="submit" class="botao botao-principal">Salvar</button>
+      <a href="{{ '/fiado/clientes/%d' % cliente.id if cliente else '/fiado' }}" class="botao">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

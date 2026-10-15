@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from "caixa/_macros.html" import valor_movimento, diferenca %}
+{% block titulo %}Resumo do caixa #{{ r.sessao.id }}{% endblock %}
+{% block conteudo %}
+{% set s = r.sessao %}
+{% set res = r.resumo %}
+<section class="cartao folha">
+  <div class="titulo-com-acao">
+    <h1>Resumo do caixa #{{ s.id }}</h1>
+    <div class="acoes">
+      <button type="button" class="botao" data-imprimir>🖨 Imprimir (A4)</button>
+      <a href="/caixa/sessoes/{{ s.id }}/pdf" class="botao">⬇ PDF</a>
+      <a href="/" class="botao">Voltar</a>
+    </div>
+  </div>
+
+  <table class="tabela tabela-compacta">
+    <tr><th>Situação</th><td>{{ 'Aberto' if s.aberta else 'Fechado' }}</td></tr>
+    <tr><th>Aberto por</th><td>{{ s.usuario_abertura.nome }} em {{ s.aberta_em | data_hora }}</td></tr>
+    {% if not s.aberta %}
+    <tr><th>Fechado por</th><td>{{ s.usuario_fechamento.nome }} em {{ s.fechada_em | data_hora }}</td></tr>
+    {% endif %}
+  </table>
+
+  {% if not s.aberta %}
+  <h2>Conferência da gaveta</h2>
+  <table class="tabela tabela-compacta">
+    <tr><th>Fundo de troco</th><td class="num">{{ res.fundo_troco_centavos | reais }}</td></tr>
+    <tr><th>+ Entradas em dinheiro</th><td class="num">{{ res.gaveta.get('entrada', 0) | reais }}</td></tr>
+    <tr><th>+ Recebimentos de fiado em dinheiro</th><td class="num">{{ res.gaveta.get('recebimento_fiado', 0) | reais }}</td></tr>
+    <tr><th>+ Suprimentos</th><td class="num">{{ res.gaveta.get('suprimento', 0) | reais }}</td></tr>
+    <tr><th>− Saídas em dinheiro</th><td class="num">{{ res.gaveta.get('saida', 0) | reais }}</td></tr>
+    <tr><th>− Sangrias</th><td class="num">{{ res.gaveta.get('sangria', 0) | reais }}</td></tr>
+    <tr class="linha-total"><th>= Esperado na gaveta</th><td class="num">{{ s.valor_esperado_centavos | reais }}</td></tr>
+    <tr><th>Contado</th><td class="num">{{ s.valor_contado_centavos | reais }}</td></tr>
+    <tr class="linha-total"><th>Diferença</th><td class="num">{{ diferenca(s.diferenca_centavos) }}</td></tr>
+    {% if s.justificativa %}<tr><th>Justificativa</th><td>{{ s.justificativa }}</td></tr>{% endif %}
+  </table>
+  <p class="dica">Os valores da gaveta já consideram os estornos feitos neste caixa.</p>
+  {% elif usuario.eh_admin %}
+  <p><strong>Dinheiro esperado na gaveta agora:</strong> {{ res.esperado_gaveta_centavos | reais }}</p>
+  {% endif %}
+
+  <h2>Por forma de pagamento</h2>
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Forma</th><th class="num">Recebido</th><th class="num">Pago (despesas)</th></tr></thead>
+    <tbody>
+    {% for linha in res.por_forma %}
+      <tr><td>{{ linha.forma }}</td><td class="num">{{ linha.recebido_centavos | reais }}</td><td class="num">{{ linha.pago_centavos | reais }}</td></tr>
+    {% else %}
+      <tr><td colspan="3" class="dica">Sem vendas nem despesas.</td></tr>
+    {% endfor %}
+    </tbody>
+    <tfoot><tr class="linha-total"><th>Total</th><td class="num">{{ res.faturamento_centavos | reais }}</td><td class="num">{{ res.despesas_centavos | reais }}</td></tr></tfoot>
+  </table>
+
+  <h2>Por tipo</h2>
+  <table class="tabela tabela-compacta">
+    {% for tipo in ('entrada', 'recebimento_fiado', 'saida', 'sangria', 'suprimento') %}
+    <tr><th>{{ rotulos[tipo] }}</th><td class="num">{{ res.por_tipo.get(tipo, 0) | reais }}</td></tr>
+    {% endfor %}
+    <tr><th>Estornos (quantidade)</th><td class="num">{{ res.estornos_qtd }}</td></tr>
+    {% if res.estornos_fora_da_gaveta_centavos %}
+    <tr><th>Estornos de caixas anteriores (fora da gaveta)</th><td class="num">{{ res.estornos_fora_da_gaveta_centavos | reais }}</td></tr>
+    {% endif %}
+  </table>
+  <p class="dica">Os totais por tipo e por forma já descontam os estornos.</p>
+
+  <h2>Lançamentos</h2>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>#</th><th>Hora</th><th>Tipo</th><th>Descrição</th><th>Pagamento</th><th>Por</th><th class="num">Valor</th></tr></thead>
+    <tbody>
+    {% for m in r.movimentos %}
+      <tr class="{{ 'riscado' if m.id in r.estornados }}">
+        <td>{{ m.id }}</td>
+        <td>{{ (m.criado_em | data_hora)[-5:] }}</td>
+        <td>{{ m.rotulo }}{% if m.estorno_de_id %} (#{{ m.estorno_de_id }}){% endif %}</td>
+        <td>{{ m.descricao or (m.categoria.nome if m.categoria else '') }}</td>
+        <td>{% for p in m.partes %}{{ p.forma.nome }}{% if m.partes|length > 1 %} {{ p.valor_centavos | reais }}{% endif %}{% if not loop.last %} + {% endif %}{% endfor %}</td>
+        <td>{{ m.usuario.nome }}</td>
+        <td class="num">{{ valor_movimento(m) }}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="dica">Nenhum lançamento.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="dica rodape-impressao">Documento gerencial interno — não é documento fiscal.</p>
+</section>
+{% endblock %}

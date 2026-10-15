@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "fiado/_macros.html" import saldo, autorizacao_admin, campos_ocultos %}
+{% block titulo %}Confirmar fiado{% endblock %}
+{% block conteudo %}
+{% set c = previa.cliente %}
+<section class="cartao estreito">
+  <h1>Confira antes de gravar</h1>
+  <dl class="resumo-confirmacao">
+    <dt>Cliente</dt><dd>{{ c.nome }}</dd>
+    <dt>Data</dt><dd>{{ previa.data_referencia | data }}</dd>
+    {% if previa.descricao %}<dt>Levou</dt><dd>{{ previa.descricao }}</dd>{% endif %}
+    <dt>Total da compra</dt><dd>{{ previa.total_centavos | reais }}</dd>
+    {% for p in previa.partes_pagas %}<dt>Pago agora ({{ p.forma }})</dt><dd class="valor-entrada">{{ p.valor_centavos | reais }}</dd>{% endfor %}
+    <dt>Vai para o fiado</dt><dd class="valor-saida"><strong>▲ + {{ previa.valor_fiado_centavos | reais }}</strong></dd>
+    <dt>Saldo antes</dt><dd>{{ saldo(previa.saldo_antes_centavos) }}</dd>
+    <dt>Saldo depois</dt><dd>{{ saldo(previa.saldo_depois_centavos) }}</dd>
+  </dl>
+
+  <form method="post" action="/fiado/clientes/{{ c.id }}/compra" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    {{ campos_ocultos(valores, ('confirmar_valor_alto', 'confirmar_limite')) }}
+    {% if previa.excede_limite %}
+    <p class="aviso aviso-erro" role="alert">⚠ Passa do limite de crédito ({{ c.limite_centavos | reais }}).</p>
+    {% if usuario.eh_admin %}
+    <label class="opcao"><input type="checkbox" name="confirmar_limite" value="1" required> Autorizo passar do limite</label>
+    {% else %}
+    {{ autorizacao_admin("Precisa da autorização do administrador") }}
+    {% endif %}
+    {% endif %}
+    {% if previa.valor_alto %}
+    <p class="aviso aviso-erro" role="alert">⚠ Valor muito alto. Confira se não digitou zeros a mais.</p>
+    <label class="opcao"><input type="checkbox" name="confirmar_valor_alto" value="1" required> Confirmo que o valor está correto</label>
+    {% endif %}
+    <div class="acoes acoes-invertidas">
+      <button type="submit" name="etapa" value="gravar" class="botao botao-principal" {% if not previa.excede_limite %}autofocus{% endif %}>Gravar ↵</button>
+      <button type="submit" name="etapa" value="corrigir" class="botao" formnovalidate>← Corrigir</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}Primeiro acesso{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Bem-vinda! Vamos criar o administrador</h1>
+  <p>Este é o primeiro acesso ao sistema. Crie o usuário da dona da loja: ele poderá
+     cadastrar funcionários, fazer estornos e ver todos os relatórios.</p>
+  <form method="post" action="/primeiro-acesso" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Nome
+      <input name="nome" value="{{ dados.nome or '' }}" required autofocus maxlength="80" autocomplete="name">
+    </label>
+    <label>Usuário para entrar (ex.: maria)
+      <input name="login" value="{{ dados.login or '' }}" required maxlength="40" autocapitalize="none" autocomplete="username">
+    </label>
+    <label>Senha
+      <input name="senha" type="password" required autocomplete="new-password">
+    </label>
+    <label>Repita a senha
+      <input name="confirmacao" type="password" required autocomplete="new-password">
+    </label>
+    <p class="dica">Anote a senha em papel e guarde em local seguro.</p>
+    <button type="submit" class="botao botao-principal">Criar administrador</button>
+  </form>
+</section>
+{% endblock %}

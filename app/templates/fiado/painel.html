@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "fiado/_macros.html" import saldo %}
+{% block titulo %}Fiado{% endblock %}
+{% block conteudo %}
+<div class="titulo-com-acao">
+  <h1>📒 {% if acao == 'compra' %}Anotar fiado: escolha o cliente{% elif acao == 'receber' %}Receber fiado: escolha o cliente{% else %}Fiado (caderneta){% endif %}</h1>
+  <a href="/fiado/clientes/novo{% if acao %}?acao={{ acao }}{% endif %}" class="botao botao-principal">+ Novo cliente</a>
+</div>
+
+<section class="cartao">
+  <form method="get" action="/fiado" class="busca" role="search">
+    <input type="hidden" name="acao" value="{{ acao }}">
+    <label class="sr-only" for="q">Buscar cliente</label>
+    <input id="q" name="q" value="{{ q }}" placeholder="Buscar por nome, apelido ou telefone…" autofocus autocomplete="off"
+           hx-get="/fiado/busca" hx-trigger="input changed delay:250ms, search" hx-target="#resultados"
+           hx-include="[name=acao]">
+    <button type="submit" class="botao">Buscar</button>
+  </form>
+  <div id="resultados">{% include "fiado/_resultados.html" %}</div>
+</section>
+
+{% if painel %}
+<section class="cartoes-numeros">
+  <div class="cartao-numero"><span>Total a receber</span><strong class="valor-saida">{{ painel.total_a_receber_centavos | reais }}</strong></div>
+  <div class="cartao-numero"><span>Clientes devendo</span><strong>{{ painel.clientes_devendo }}</strong></div>
+  <div class="cartao-numero"><span>Créditos de clientes</span><strong class="valor-entrada">{{ painel.total_creditos_centavos | reais }}</strong></div>
+</section>
+
+<section class="cartao">
+  <div class="titulo-com-acao">
+    <h2>Quem está devendo</h2>
+    <nav class="abas" aria-label="Ordenar">
+      <a href="/fiado?ordem=valor" {% if ordem != 'atraso' %}aria-current="page"{% endif %}>Por valor</a>
+      <a href="/fiado?ordem=atraso" {% if ordem == 'atraso' %}aria-current="page"{% endif %}>Por atraso</a>
+    </nav>
+  </div>
+  {% if painel.por_faixa %}
+  <p class="faixas">
+    {% for faixa in ('até 30 dias', '30+ dias', '60+ dias', '90+ dias') if faixa in painel.por_faixa %}
+    <span class="etiqueta {{ 'etiqueta-cinza' if faixa == 'até 30 dias' else 'etiqueta-amarela' }}">{{ faixa }}: {{ painel.por_faixa[faixa] | reais }}</span>
+    {% endfor %}
+  </p>
+  {% endif %}
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>Cliente</th><th class="num">Saldo</th><th>Compra mais antiga em aberto</th><th>Atraso</th></tr></thead>
+    <tbody>
+    {% for linha in painel.linhas %}
+      <tr>
+        <td><a href="/fiado/clientes/{{ linha.cliente.id }}">{{ linha.cliente.nome }}{% if linha.cliente.apelido %} ({{ linha.cliente.apelido }}){% endif %}</a></td>
+        <td class="num">{{ saldo(linha.saldo_centavos) }}</td>
+        <td>{{ linha.desde | data }}{% if linha.dias is not none %} · {{ linha.dias }} dia(s){% endif %}</td>
+        <td>{% if linha.faixa and linha.faixa != 'até 30 dias' %}<span class="etiqueta etiqueta-amarela">⚠ {{ linha.faixa }}</span>{% else %}{{ linha.faixa }}{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="dica">Ninguém devendo. 🎉</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

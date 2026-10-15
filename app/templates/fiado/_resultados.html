@@ -1,0 +1,21 @@
+{% from "fiado/_macros.html" import saldo %}
+{% if clientes %}
+<ul class="lista-clientes">
+  {% for c in clientes %}
+  <li>
+    <a href="/fiado/clientes/{{ c.id }}" class="lista-clientes-nome">
+      <strong>{{ c.nome }}</strong>{% if c.apelido %} <span class="dica">({{ c.apelido }})</span>{% endif %}
+      <span>{{ saldo(c.saldo_centavos) }}</span>
+    </a>
+    <span class="lista-clientes-acoes">
+      {% if acao != 'receber' %}<a href="/fiado/clientes/{{ c.id }}/compra" class="botao">📒 Anotar</a>{% endif %}
+      {% if acao != 'compra' %}<a href="/fiado/clientes/{{ c.id }}/receber" class="botao">💵 Receber</a>{% endif %}
+    </span>
+  </li>
+  {% endfor %}
+</ul>
+{% elif q %}
+<p class="dica">Nenhum cliente encontrado para "{{ q }}". <a href="/fiado/clientes/novo{% if acao %}?acao={{ acao }}{% endif %}">Cadastrar novo cliente</a>.</p>
+{% else %}
+<p class="dica">Digite para buscar.</p>
+{% endif %}

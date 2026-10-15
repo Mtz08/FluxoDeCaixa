@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Restaurar backup{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>♻ Restaurar backup</h1>
+  <p class="aviso aviso-erro" role="alert">⚠ Restaurar <strong>substitui todos os dados atuais</strong> pelos do backup escolhido.
+     Tudo o que foi lançado depois daquele backup deixa de aparecer.</p>
+  <p class="dica">Antes de restaurar, o sistema guarda automaticamente uma cópia do estado atual (pasta de dados → pre_restauracao).
+     Depois de restaurar, todos precisam entrar de novo.</p>
+
+  <form method="post" action="/backup/restaurar" enctype="multipart/form-data" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <fieldset>
+      <legend>1. Escolha o backup</legend>
+      {% for a in arquivos[:40] %}
+      <label class="opcao"><input type="radio" name="origem" value="{{ a.caminho }}" {% if loop.first %}checked{% endif %}>
+        {{ a.momento.strftime('%d/%m/%Y %H:%M') }} · {{ (a.tamanho_bytes / 1024) | round(0) | int }} KB · <span class="dica">{{ a.caminho.parent }}</span></label>
+      {% else %}
+      <p class="dica">Nenhum backup encontrado nas pastas configuradas.</p>
+      {% endfor %}
+      {% if arquivos %}<label class="opcao"><input type="radio" name="origem" value=""> Outro arquivo (enviar abaixo)</label>{% endif %}
+      <label>Arquivo de backup (.cxbk) do pendrive ou de outro computador
+        <input type="file" name="arquivo" accept=".cxbk">
+      </label>
+    </fieldset>
+    <label>Senha do backup (deixe vazio para usar a senha configurada neste computador)
+      <input name="senha_backup" type="password" autocomplete="off">
+    </label>
+    <fieldset>
+      <legend>2. Confirmação</legend>
+      <label>Digite RESTAURAR
+        <input name="confirmacao" required autocomplete="off">
+      </label>
+      <label>Sua senha de administrador
+        <input name="senha_admin" type="password" required autocomplete="current-password">
+      </label>
+    </fieldset>
+    <div class="acoes acoes-invertidas">
+      <button type="submit" class="botao botao-atencao">Restaurar este backup</button>
+      <a href="/configuracoes#backup" class="botao">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

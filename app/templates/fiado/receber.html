@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% from "fiado/_macros.html" import saldo %}
+{% block titulo %}Receber fiado{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>💵 Receber pagamento</h1>
+  <p><strong>{{ cliente.nome }}</strong>{% if cliente.apelido %} ({{ cliente.apelido }}){% endif %} · {{ saldo(cliente.saldo_centavos) }}</p>
+
+  <form method="post" action="/fiado/clientes/{{ cliente.id }}/receber" class="formulario" data-lancamento>
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input type="hidden" name="chave" value="{{ chave }}">
+    <input type="hidden" name="etapa" value="revisar">
+    <p class="dica">Preencha uma ou mais formas (pagamento dividido).</p>
+    {% for f in formas %}
+    <label>{{ f.nome }}
+      <input name="parte_{{ f.id }}" value="{{ valores.get('parte_' ~ f.id, '') }}" data-moeda data-parte
+             {% if f.afeta_gaveta %}data-dinheiro{% endif %} inputmode="numeric" autocomplete="off"
+             placeholder="0,00" {% if loop.first %}autofocus{% endif %}>
+    </label>
+    {% endfor %}
+    <p class="total-ao-vivo">Total recebido: <strong data-total>R$ 0,00</strong></p>
+    <div class="acoes acoes-invertidas">
+      <button type="submit" class="botao botao-principal">Continuar ↵</button>
+      <a href="/fiado/clientes/{{ cliente.id }}" class="botao">Cancelar (Esc)</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

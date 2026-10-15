@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titulo %}Alterar usuário{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Alterar usuário: {{ alvo.login }}</h1>
+  <form method="post" action="/usuarios/{{ alvo.id }}" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Nome
+      <input name="nome" value="{{ alvo.nome }}" required maxlength="80">
+    </label>
+    <fieldset>
+      <legend>Perfil</legend>
+      <label class="opcao"><input type="radio" name="perfil" value="operador" {% if not alvo.eh_admin %}checked{% endif %}> Operador (balcão)</label>
+      <label class="opcao"><input type="radio" name="perfil" value="admin" {% if alvo.eh_admin %}checked{% endif %}> Administrador</label>
+    </fieldset>
+    <label class="opcao"><input type="checkbox" name="ativo" value="1" {% if alvo.ativo %}checked{% endif %}> Usuário ativo (pode entrar no sistema)</label>
+    <div class="acoes">
+      <a href="/usuarios" class="botao">Voltar</a>
+      <button type="submit" class="botao botao-principal">Salvar</button>
+    </div>
+  </form>
+</section>
+
+<section class="cartao estreito">
+  <h2>Redefinir senha</h2>
+  <p>Use quando a pessoa esquecer a senha ou estiver bloqueada. A senha provisória precisará ser trocada no próximo acesso.</p>
+  <form method="post" action="/usuarios/{{ alvo.id }}/senha" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Nova senha provisória
+      <input name="nova" type="text" required autocomplete="off">
+    </label>
+    <button type="submit" class="botao botao-atencao">Redefinir senha</button>
+  </form>
+</section>
+{% endblock %}

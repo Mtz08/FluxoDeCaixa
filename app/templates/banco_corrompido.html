@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block titulo %}Banco com problema{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>O banco de dados está com problema</h1>
+  <p class="aviso aviso-erro" role="alert">✖ O sistema encontrou um defeito no arquivo de dados e parou para não piorar a situação.</p>
+  <ol>
+    <li>Não desligue o computador à força. Feche esta janela e a janela preta do sistema.</li>
+    <li>Ligue para o responsável técnico.</li>
+    <li>Para recuperar: dê dois cliques em <strong>scripts\restaurar_backup.bat</strong>, escolha o backup mais
+        recente (no pendrive ou na pasta da nuvem) e digite a senha do backup anotada no papel.</li>
+    <li>Depois abra o sistema de novo. O banco com defeito fica guardado (não é apagado).</li>
+  </ol>
+</section>
+{% endblock %}

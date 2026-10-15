@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% from "fiado/_macros.html" import saldo, valor_lancamento %}
+{% block titulo %}{{ e.cliente.nome }}{% endblock %}
+{% block conteudo %}
+{% set c = e.cliente %}
+<section class="cartao folha">
+  <div class="titulo-com-acao">
+    <div>
+      <h1>{{ c.nome }}{% if c.apelido %} <span class="dica">({{ c.apelido }})</span>{% endif %}</h1>
+      <p class="dica">
+        {% if telefone %}📞 {{ telefone }} · {% endif %}
+        {% if c.dia_pagamento %}Paga todo dia {{ c.dia_pagamento }} · {% endif %}
+        {% if c.limite_centavos is not none %}Limite {{ c.limite_centavos | reais }} · Pode comprar mais {{ c.pode_comprar_centavos() | reais }}{% else %}Sem limite{% endif %}
+        {% if not c.ativo %} · <span class="etiqueta etiqueta-cinza">{{ 'Anonimizado' if c.anonimizado else 'Inativo' }}</span>{% endif %}
+      </p>
+      {% if c.observacao %}<p>📝 {{ c.observacao }}</p>{% endif %}
+    </div>
+    <div class="saldo-destaque">
+      <span>Saldo</span>
+      <strong>{{ saldo(e.saldo_centavos) }}</strong>
+      {% if e.compra_mais_antiga %}<span class="dica">Em aberto desde {{ e.compra_mais_antiga | data }} ({{ e.dias_em_aberto }} dia(s))</span>{% endif %}
+    </div>
+  </div>
+
+  {% if not c.anonimizado %}
+  <div class="acoes acoes-esquerda">
+    {% if c.ativo %}<a href="/fiado/clientes/{{ c.id }}/compra" class="botao botao-principal">📒 Anotar compra</a>{% endif %}
+    <a href="/fiado/clientes/{{ c.id }}/receber" class="botao botao-principal">💵 Receber pagamento</a>
+    {% if e.link_whatsapp %}<a href="{{ e.link_whatsapp }}" class="botao" target="_blank" rel="noopener noreferrer">💬 Enviar extrato no WhatsApp</a>{% endif %}
+    {% if e.saldo_centavos < 0 %}<a href="/fiado/clientes/{{ c.id }}/operacao/devolver" class="botao">↩ Devolver crédito</a>{% endif %}
+    <a href="/fiado/clientes/{{ c.id }}/editar" class="botao">✏ Alterar cadastro</a>
+    <button type="button" class="botao" data-imprimir>🖨 Imprimir extrato</button>
+  </div>
+  {% endif %}
+
+  <h2>Extrato</h2>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Data</th><th>Lançamento</th><th>Descrição</th><th>Por</th><th class="num">Valor</th><th class="num">Saldo</th><th></th></tr></thead>
+    <tbody>
+    {% for linha in e.linhas %}
+      {% set l = linha.lancamento %}
+      <tr class="{{ 'riscado' if l.id in e.estornados }}">
+        <td>{{ l.data_referencia | data }}</td>
+        <td>{{ l.rotulo }}</td>
+        <td>{{ l.descricao or '' }}</td>
+        <td>{{ l.usuario.nome }}</td>
+        <td class="num">{{ valor_lancamento(l) }}</td>
+        <td class="num">{{ linha.saldo_apos_centavos | reais }}</td>
+        <td>
+          {% if l.id in e.estornados %}<span class="etiqueta etiqueta-cinza">Estornado</span>
+          {% elif l.tipo != 'estorno' %}<a href="/fiado/lancamentos/{{ l.id }}/estornar">Estornar</a>{% endif %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="7" class="dica">Nenhum lançamento.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="dica rodape-impressao">Extrato gerencial interno — sem juros nem multa.</p>
+</section>
+
+{% if usuario.eh_admin and not c.anonimizado %}
+<section class="cartao">
+  <h2>Administração</h2>
+  <div class="acoes acoes-esquerda">
+    <a href="/fiado/clientes/{{ c.id }}/operacao/saldo-inicial" class="botao">📖 Lançar saldo do caderno</a>
+    {% if e.saldo_centavos > 0 %}<a href="/fiado/clientes/{{ c.id }}/operacao/abater" class="botao">✂ Abater / perdoar dívida</a>{% endif %}
+    <a href="/fiado/clientes/{{ c.id }}/exportar" class="botao">⬇ Exportar dados do cliente (LGPD)</a>
+  </div>
+  {% if e.saldo_centavos == 0 %}
+  <details>
+    <summary>Anonimizar cliente (LGPD)</summary>
+    <form method="post" action="/fiado/clientes/{{ c.id }}/anonimizar" class="formulario">
+      <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+      <p>Apaga nome, apelido, telefone e observação de forma <strong>irreversível</strong>. Os valores do histórico continuam para a contabilidade.</p>
+      <label>Digite ANONIMIZAR para confirmar
+        <input name="confirmacao" required autocomplete="off">
+      </label>
+      <button type="submit" class="botao botao-atencao">Anonimizar definitivamente</button>
+    </form>
+  </details>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

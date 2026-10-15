@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}Novo usuário{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Novo usuário</h1>
+  <form method="post" action="/usuarios/novo" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Nome
+      <input name="nome" value="{{ dados.nome or '' }}" required autofocus maxlength="80">
+    </label>
+    <label>Usuário para entrar
+      <input name="login" value="{{ dados.login or '' }}" required maxlength="40" autocapitalize="none">
+    </label>
+    <fieldset>
+      <legend>Perfil</legend>
+      <label class="opcao"><input type="radio" name="perfil" value="operador" {% if dados.perfil != 'admin' %}checked{% endif %}> Operador (balcão)</label>
+      <label class="opcao"><input type="radio" name="perfil" value="admin" {% if dados.perfil == 'admin' %}checked{% endif %}> Administrador</label>
+    </fieldset>
+    <label>Senha provisória
+      <input name="senha" type="text" required autocomplete="off">
+    </label>
+    <p class="dica">Entregue a senha provisória à pessoa. Ela será obrigada a trocá-la no primeiro acesso.</p>
+    <div class="acoes">
+      <a href="/usuarios" class="botao">Cancelar</a>
+      <button type="submit" class="botao botao-principal">Criar usuário</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

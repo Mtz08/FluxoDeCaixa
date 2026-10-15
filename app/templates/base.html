@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
+  <title>{% block titulo %}Caixa{% endblock %} · Papelaria</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
+  <script src="{{ url_for('static', path='js/htmx.min.js') }}" defer></script>
+  <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
+</head>
+<body data-csrf="{{ csrf_token }}">
+  <header class="topo">
+    <a href="/" class="marca">Caixa da Papelaria</a>
+    {% if usuario %}
+    <nav class="menu">
+      <span class="quem">{{ usuario.nome }} · {{ "Administrador" if usuario.eh_admin else "Operador" }}</span>
+      {% if not usuario.trocar_senha %}<a href="/fiado">Fiado</a>{% endif %}
+      {% if usuario.eh_admin and not usuario.trocar_senha %}<a href="/relatorios">Relatórios</a> <a href="/usuarios">Usuários</a> <a href="/configuracoes">Configurações</a>{% endif %}
+      <a href="/trocar-senha">Minha senha</a>
+      <form method="post" action="/sair" class="em-linha">
+        <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+        <button type="submit" class="botao-link">Trocar operador / Sair</button>
+      </form>
+    </nav>
+    {% endif %}
+  </header>
+
+  <main class="conteudo">
+    {% if aviso %}<p class="aviso aviso-ok" role="status">✔ {{ aviso }}</p>{% endif %}
+    {% if erro %}<p class="aviso aviso-erro" role="alert">✖ {{ erro }}</p>{% endif %}
+    {% block conteudo %}{% endblock %}
+  </main>
+</body>
+</html>

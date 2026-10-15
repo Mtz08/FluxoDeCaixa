@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "caixa/_macros.html" import valor_movimento %}
+{% block titulo %}Início{% endblock %}
+{% block conteudo %}
+{% if alerta_relogio %}<p class="aviso aviso-erro" role="alert">⚠ {{ alerta_relogio }}</p>{% endif %}
+{% if alerta_backup %}
+<p class="aviso aviso-erro" role="alert">💾 {{ alerta_backup }}
+  {% if usuario.eh_admin %}<a href="/configuracoes#backup">Abrir configurações de backup</a>{% else %}Avise o administrador.{% endif %}</p>
+{% endif %}
+
+{% if dia %}
+<section class="cartoes-numeros" aria-label="Resumo de hoje">
+  <div class="cartao-numero"><span>Faturamento hoje</span><strong class="valor-entrada">{{ dia.caixa.faturamento_centavos | reais }}</strong>
+    <small>{% for f in dia.caixa.por_forma if f.recebido_centavos %}{{ f.forma }} {{ f.recebido_centavos | reais }}{% if not loop.last %} · {% endif %}{% endfor %}</small></div>
+  <div class="cartao-numero"><span>Despesas hoje</span><strong class="valor-saida">{{ dia.caixa.despesas_centavos | reais }}</strong></div>
+  <div class="cartao-numero"><span>Dinheiro na gaveta (esperado)</span><strong>{{ dia.gaveta_centavos | reais if dia.gaveta_centavos is not none else 'Caixa fechado' }}</strong></div>
+  <div class="cartao-numero"><span>Fiado hoje</span><strong>{{ dia.fiado.compras_centavos | reais }}</strong><small>anotado · recebido {{ dia.fiado.recebido_centavos | reais }}</small></div>
+  {% if sessao %}<a class="cartao-numero" href="/caixa/sessoes/{{ sessao.id }}"><span>Caixa aberto</span><strong>Resumo →</strong></a>{% endif %}
+  <a class="cartao-numero" href="/relatorios"><span>Relatórios</span><strong>Ver →</strong></a>
+</section>
+{% endif %}
+
+{% if not sessao %}
+<section class="cartao estreito">
+  <h1>🔒 Caixa fechado</h1>
+  <p>Conte o dinheiro que está na gaveta para troco e abra o caixa.</p>
+  <form method="post" action="/caixa/abrir" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input type="hidden" name="chave" value="{{ chave }}">
+    <label>Fundo de troco (dinheiro na gaveta)
+      <input name="fundo" data-moeda inputmode="numeric" autocomplete="off" placeholder="0,00" autofocus>
+    </label>
+    <button type="submit" class="botao botao-principal botao-largo">Abrir caixa</button>
+  </form>
+</section>
+
+{% elif caixa_atrasado %}
+<section class="cartao estreito">
+  <h1>⚠ Caixa de {{ sessao.aberta_em | data_hora }} ainda aberto</h1>
+  <p class="aviso aviso-erro" role="alert">O caixa de um dia anterior não foi fechado.
+     Feche esse caixa antes de fazer novos lançamentos.</p>
+  <a href="/caixa/fechar" class="botao botao-principal botao-largo">Fechar caixa agora</a>
+</section>
+
+{% else %}
+<div class="titulo-com-acao">
+  <h1>Caixa aberto</h1>
+  <span class="dica">Aberto por {{ sessao.usuario_abertura.nome }} em {{ sessao.aberta_em | data_hora }}</span>
+</div>
+
+<div class="grade-botoes">
+  <a href="/caixa/lancar/entrada" class="botao-grande entrada" data-atalho="F2"><span aria-hidden="true">＋</span> Entrada <kbd>F2</kbd></a>
+  <a href="/caixa/lancar/saida" class="botao-grande saida" data-atalho="F3"><span aria-hidden="true">－</span> Saída <kbd>F3</kbd></a>
+  <a href="/fiado?acao=compra" class="botao-grande" data-atalho="F4"><span aria-hidden="true">📒</span> Fiado <kbd>F4</kbd></a>
+  <a href="/fiado?acao=receber" class="botao-grande" data-atalho="F9"><span aria-hidden="true">💵</span> Receber fiado <kbd>F9</kbd></a>
+  <a href="/caixa/lancar/sangria" class="botao-grande saida" data-atalho="F6"><span aria-hidden="true">⬆</span> Sangria <kbd>F6</kbd></a>
+  <a href="/caixa/lancar/suprimento" class="botao-grande entrada" data-atalho="F7"><span aria-hidden="true">⬇</span> Suprimento <kbd>F7</kbd></a>
+  <a href="/caixa/fechar" class="botao-grande" data-atalho="F8"><span aria-hidden="true">🔒</span> Fechar caixa <kbd>F8</kbd></a>
+</div>
+
+
+
+<section class="cartao">
+  <h2>Lançamentos deste caixa</h2>
+  {% if movimentos %}
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>Hora</th><th>Tipo</th><th>Descrição</th><th>Pagamento</th><th class="num">Valor</th><th></th></tr></thead>
+    <tbody>
+    {% for m in movimentos %}
+      <tr class="{{ 'riscado' if m.id in estornados }}">
+        <td>{{ (m.criado_em | data_hora)[-5:] }}</td>
+        <td>{{ m.rotulo }}</td>
+        <td>{{ m.descricao or (m.categoria.nome if m.categoria else '') }}</td>
+        <td>{% for p in m.partes %}{{ p.forma.nome }}{% if m.partes|length > 1 %} {{ p.valor_centavos | reais }}{% endif %}{% if not loop.last %} + {% endif %}{% endfor %}</td>
+        <td class="num">{{ valor_movimento(m) }}</td>
+        <td>
+          {% if m.id in estornados %}<span class="etiqueta etiqueta-cinza">Estornado</span>
+          {% elif m.tipo == 'estorno' %}
+          {% elif m.origem == 'fiado' %}<a href="/fiado/clientes/{{ m.origem_id }}" title="Estorne pela ficha do cliente">Ver no fiado</a>
+          {% else %}<a href="/caixa/movimentos/{{ m.id }}/estornar">Estornar</a>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="dica">Nenhum lançamento ainda.</p>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}

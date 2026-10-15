@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "fiado/_macros.html" import saldo %}
+{% block titulo %}Anotar fiado{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>📒 Anotar fiado</h1>
+  <p><strong>{{ cliente.nome }}</strong>{% if cliente.apelido %} ({{ cliente.apelido }}){% endif %} · {{ saldo(cliente.saldo_centavos) }}
+    {% if cliente.limite_centavos is not none %}<br><span class="dica">Pode comprar mais {{ cliente.pode_comprar_centavos() | reais }} (limite {{ cliente.limite_centavos | reais }})</span>{% endif %}</p>
+
+  <form method="post" action="/fiado/clientes/{{ cliente.id }}/compra" class="formulario" data-lancamento>
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input type="hidden" name="chave" value="{{ chave }}">
+    <input type="hidden" name="etapa" value="revisar">
+    <label>Valor total da compra
+      <input name="total" value="{{ valores.get('total', '') }}" data-moeda inputmode="numeric" autocomplete="off" placeholder="0,00" required autofocus>
+    </label>
+    <label>O que levou
+      <input name="descricao" value="{{ valores.get('descricao', '') }}" maxlength="200" placeholder="ex.: caderno + caneta">
+    </label>
+    <label>Data da compra
+      <input name="data" type="date" value="{{ valores.get('data', hoje) }}" max="{{ hoje }}" required>
+    </label>
+    {% set pago = namespace(informado=false) %}
+    {% for f in formas %}{% if valores.get('pago_' ~ f.id) %}{% set pago.informado = true %}{% endif %}{% endfor %}
+    <details {% if pago.informado %}open{% endif %}>
+      <summary>Pagou uma parte agora?</summary>
+      <p class="dica">O que for pago agora entra no caixa; só o restante fica no fiado.</p>
+      {% for f in formas %}
+      <label>{{ f.nome }}
+        <input name="pago_{{ f.id }}" value="{{ valores.get('pago_' ~ f.id, '') }}" data-moeda inputmode="numeric" autocomplete="off" placeholder="0,00">
+      </label>
+      {% endfor %}
+    </details>
+    <div class="acoes acoes-invertidas">
+      <button type="submit" class="botao botao-principal">Continuar ↵</button>
+      <a href="/fiado/clientes/{{ cliente.id }}" class="botao">Cancelar (Esc)</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

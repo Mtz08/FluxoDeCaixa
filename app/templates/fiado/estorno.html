@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% from "fiado/_macros.html" import valor_lancamento, autorizacao_admin %}
+{% block titulo %}Estornar lançamento do fiado{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Estornar lançamento #{{ original.id }}</h1>
+  <dl class="resumo-confirmacao">
+    <dt>Lançamento</dt><dd>{{ original.rotulo }}</dd>
+    <dt>Data</dt><dd>{{ original.data_referencia | data }}</dd>
+    <dt>Valor</dt><dd>{{ valor_lancamento(original) }}</dd>
+    {% if original.descricao %}<dt>Descrição</dt><dd>{{ original.descricao }}</dd>{% endif %}
+    <dt>Lançado por</dt><dd>{{ original.usuario.nome }} em {{ original.criado_em | data_hora }}</dd>
+  </dl>
+  <p>O estorno grava um lançamento <strong>inverso</strong>; o original continua visível.</p>
+  {% if original.movimento_caixa_id %}
+  <p class="aviso aviso-erro">⚠ Este lançamento passou pelo caixa: o caixa também será estornado (precisa de caixa aberto).</p>
+  {% endif %}
+  <form method="post" action="/fiado/lancamentos/{{ original.id }}/estornar" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input type="hidden" name="chave" value="{{ chave }}">
+    <label>Motivo do estorno (obrigatório)
+      <input name="motivo" value="{{ motivo or '' }}" required minlength="3" maxlength="200" autofocus placeholder="ex.: anotado no cliente errado">
+    </label>
+    {% if not usuario.eh_admin %}{{ autorizacao_admin() }}{% endif %}
+    <div class="acoes acoes-invertidas">
+      <button type="submit" class="botao botao-atencao">Confirmar estorno</button>
+      <a href="/fiado/clientes/{{ original.cliente_id }}" class="botao">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

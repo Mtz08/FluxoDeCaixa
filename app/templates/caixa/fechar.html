@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}Fechar caixa{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>🔒 Fechar caixa</h1>
+  <ol>
+    <li>Conte <strong>todo o dinheiro</strong> da gaveta (notas e moedas, incluindo o troco).</li>
+    <li>Digite o total contado abaixo.</li>
+  </ol>
+  <p class="dica">O sistema só mostra se sobrou ou faltou depois que você informar a contagem.</p>
+  <form method="post" action="/caixa/fechar" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input type="hidden" name="sessao_id" value="{{ sessao.id }}">
+    <input type="hidden" name="etapa" value="conferir">
+    <label>Dinheiro contado na gaveta
+      <input name="contado" data-moeda inputmode="numeric" autocomplete="off" placeholder="0,00" required autofocus>
+    </label>
+    <div class="acoes acoes-invertidas">
+      <button type="submit" class="botao botao-principal">Conferir ↵</button>
+      <a href="/" class="botao">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block titulo %}Configurações{% endblock %}
+{% block conteudo %}
+<h1>⚙ Configurações</h1>
+<nav class="abas indice" aria-label="Seções">
+  <a href="#backup">Backup</a> <a href="#celular">Celular</a> <a href="#gerais">Loja</a>
+  <a href="#formas">Formas de pagamento</a> <a href="#categorias">Categorias</a> <a href="#verificar">Verificar dados</a>
+</nav>
+
+{# ------------------------------------------------------------ backup #}
+<section class="cartao" id="backup">
+  <h2>💾 Backup</h2>
+  {% set b = backup %}
+  {% if b.ultimo_ok %}
+  <p>Último backup bem-sucedido: <strong>{{ b.ultimo_ok.criado_em | data_hora }}</strong> em {{ b.ultimo_ok.destino }}</p>
+  {% else %}<p class="aviso aviso-erro">⚠ Nenhum backup feito ainda.</p>{% endif %}
+  {% for falha in b.falhas_recentes[:3] %}
+  <p class="aviso aviso-erro">⚠ {{ falha.criado_em | data_hora }} — {{ falha.destino or '' }}: {{ falha.erro }}</p>
+  {% endfor %}
+
+  <div class="acoes acoes-esquerda">
+    <form method="post" action="/backup/agora" class="em-linha">
+      <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+      <button type="submit" class="botao botao-principal" {% if not b.configurado %}disabled{% endif %}>💾 Fazer backup agora</button>
+    </form>
+    <a href="/backup/restaurar" class="botao">♻ Restaurar um backup…</a>
+  </div>
+
+  <h3>1. Senha do backup {% if b.senha_definida %}<span class="etiqueta etiqueta-verde">definida</span>{% else %}<span class="etiqueta etiqueta-amarela">não definida</span>{% endif %}</h3>
+  <p class="dica">Os backups são criptografados com esta senha. <strong>Anote-a em papel e guarde fora da loja.</strong>
+     Sem ela, nenhum backup pode ser aberto. Se trocar a senha, os backups antigos continuam abrindo só com a senha antiga.</p>
+  <form method="post" action="/configuracoes/backup/senha" class="formulario estreito-esquerda">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Nova senha do backup (mínimo 8 caracteres)
+      <input name="nova" type="password" required minlength="8" autocomplete="new-password">
+    </label>
+    <label>Repita a senha do backup
+      <input name="confirmacao" type="password" required minlength="8" autocomplete="new-password">
+    </label>
+    <label>Sua senha de administrador (confirmação)
+      <input name="senha_admin" type="password" required autocomplete="current-password">
+    </label>
+    <button type="submit" class="botao">Salvar senha do backup</button>
+  </form>
+
+  <h3>2. Onde guardar e quando</h3>
+  <p class="dica">Recomendado: uma pasta sincronizada com a nuvem (Google Drive ou OneDrive) <strong>e</strong> um pendrive.
+     São mantidos os últimos 30 dias e 1 backup por mês dos últimos 12 meses. O backup também é feito ao fechar o caixa.</p>
+  <form method="post" action="/configuracoes/backup" class="formulario estreito-esquerda">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Pastas de destino (uma por linha, até 3)
+      <textarea name="pastas" rows="3" placeholder="C:\Users\loja\OneDrive\Backup Caixa&#10;E:\Backup Caixa">{{ prefs.backup_pastas | join('\n') }}</textarea>
+    </label>
+    <label>Horário do backup diário
+      <input name="hora" type="time" value="{{ prefs.backup_hora }}" required>
+    </label>
+    <button type="submit" class="botao">Salvar pastas e horário</button>
+  </form>
+
+  {% if b.historico %}
+  <details>
+    <summary>Histórico de backups</summary>
+    <div class="rolagem">
+    <table class="tabela tabela-compacta">
+      <thead><tr><th>Quando</th><th>Motivo</th><th>Destino</th><th>Resultado</th></tr></thead>
+      <tbody>
+      {% for r in b.historico %}
+        <tr><td>{{ r.criado_em | data_hora }}</td><td>{{ r.gatilho }}</td><td>{{ r.destino or '' }}</td>
+          <td>{% if r.ok %}<span class="etiqueta etiqueta-verde">✔ ok</span>{% else %}<span class="etiqueta etiqueta-amarela">✖ {{ r.erro }}</span>{% endif %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </details>
+  {% endif %}
+</section>
+
+{# ------------------------------------------------------------ celular #}
+<section class="cartao" id="celular">
+  <h2>📱 Acessar pelo celular</h2>
+  {% if urls %}
+  <div class="celular">
+    <img src="{{ qr }}" alt="QR Code com o endereço {{ urls[0] }}" width="180" height="180">
+    <div>
+      <p>Com o celular <strong>no mesmo Wi-Fi da loja</strong>, aponte a câmera para o QR Code ou digite:</p>
+      {% for url in urls %}<p class="endereco">{{ url }}</p>{% endfor %}
+      <p class="dica">O login é o mesmo do computador. Funciona só dentro da loja.
+        <strong>Nunca</strong> abra a porta deste endereço no roteador (o sistema não deve ficar exposto na internet).</p>
+    </div>
+  </div>
+  {% else %}
+  <p class="aviso aviso-erro">⚠ Não encontrei este computador numa rede local. Verifique se está conectado ao Wi-Fi ou ao cabo.</p>
+  {% endif %}
+</section>
+
+{# ------------------------------------------------------------ gerais #}
+<section class="cartao" id="gerais">
+  <h2>🏪 Loja</h2>
+  <form method="post" action="/configuracoes/gerais" class="formulario estreito-esquerda">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Nome da loja (aparece nos PDFs e na mensagem do WhatsApp)
+      <input name="nome_loja" value="{{ prefs.nome_loja }}" required maxlength="80">
+    </label>
+    <label>Sair sozinho depois de quantos minutos sem uso
+      <input name="sessao_minutos" value="{{ prefs.sessao_minutos }}" inputmode="numeric" required>
+    </label>
+    <label class="opcao"><input type="checkbox" name="campos_extras" value="1" {% if prefs.cliente_campos_extras %}checked{% endif %}>
+      Pedir CPF e endereço no cadastro de clientes do fiado (opcional)</label>
+    <p class="dica">Recomendado deixar desligado: quanto menos dados pessoais, menor o risco (LGPD).</p>
+    <p class="dica">Impressão: A4 pelo navegador (não há impressora térmica configurada).</p>
+    <button type="submit" class="botao botao-principal">Salvar</button>
+  </form>
+  <p class="dica">Pasta de dados deste computador: <code>{{ pasta_dados }}</code></p>
+</section>
+
+{# ------------------------------------------------------------ formas #}
+<section class="cartao" id="formas">
+  <h2>💳 Formas de pagamento</h2>
+  <ul class="lista-cadastro">
+    {% for f in formas %}
+    <li>
+      <span>{{ f.nome }}{% if f.afeta_gaveta %} <span class="etiqueta etiqueta-verde">gaveta</span>{% endif %}
+        {% if not f.ativo %}<span class="etiqueta etiqueta-cinza">desativada</span>{% endif %}</span>
+      {% if not (f.afeta_gaveta and f.ativo) %}
+      <form method="post" action="/configuracoes/formas/{{ f.id }}/alternar" class="em-linha">
+        <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+        <button type="submit" class="botao-link">{{ 'Desativar' if f.ativo else 'Reativar' }}</button>
+      </form>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="/configuracoes/formas" class="busca">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input name="nome" placeholder="Nova forma (ex.: Vale-presente)" required maxlength="40">
+    <button type="submit" class="botao">Adicionar</button>
+  </form>
+  <p class="dica">Formas novas não entram na conta da gaveta (só Dinheiro entra).</p>
+</section>
+
+{# ------------------------------------------------------------ categorias #}
+<section class="cartao" id="categorias">
+  <h2>🏷 Categorias de despesa</h2>
+  <ul class="lista-cadastro">
+    {% for c in categorias %}
+    <li>
+      <span>{{ c.nome }} {% if not c.ativo %}<span class="etiqueta etiqueta-cinza">desativada</span>{% endif %}</span>
+      <form method="post" action="/configuracoes/categorias/{{ c.id }}/alternar" class="em-linha">
+        <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+        <button type="submit" class="botao-link">{{ 'Desativar' if c.ativo else 'Reativar' }}</button>
+      </form>
+    </li>
+    {% endfor %}
+  </ul>
+  <form method="post" action="/configuracoes/categorias" class="busca">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input name="nome" placeholder="Nova categoria (ex.: Aluguel)" required maxlength="40">
+    <button type="submit" class="botao">Adicionar</button>
+  </form>
+</section>
+
+{# ------------------------------------------------------------ verificação #}
+<section class="cartao" id="verificar">
+  <h2>🔎 Verificar os dados</h2>
+  <p class="dica">Recalcula todos os saldos a partir dos lançamentos e confere se o banco está íntegro. Não altera nada.</p>
+  {% if verificado %}
+    {% if verificacao %}
+    <p class="aviso aviso-erro" role="alert">⚠ Foram encontrados problemas. Fale com o responsável técnico:</p>
+    <ul>{% for p in verificacao %}<li>{{ p }}</li>{% endfor %}</ul>
+    {% else %}
+    <p class="aviso aviso-ok" role="status">✔ Tudo certo: saldos de caixa e de clientes conferem e o banco está íntegro.</p>
+    {% endif %}
+  {% endif %}
+  <form method="post" action="/configuracoes/verificar">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <button type="submit" class="botao">Verificar agora</button>
+  </form>
+</section>
+{% endblock %}

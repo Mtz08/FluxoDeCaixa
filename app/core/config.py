@@ -1,0 +1,68 @@
+"""Configuração de infraestrutura (caminhos, porta, tempos).
+
+Lida de variáveis de ambiente com prefixo CAIXA_. Configurações de negócio
+editáveis pela dona (nome da loja, formas de pagamento etc.) ficam no banco
+(tabela `configuracao`, Etapa 5) e não aqui.
+"""
+
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass, field
+from functools import lru_cache
+from pathlib import Path
+
+
+def _dir_dados_padrao() -> Path:
+    # Fora da pasta do código e de pastas públicas (LGPD).
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home())
+    return Path(base) / "CaixaPapelaria"
+
+
+def _int_env(nome: str, padrao: int) -> int:
+    valor = os.environ.get(nome)
+    return int(valor) if valor else padrao
+
+
+@dataclass(frozen=True)
+class Config:
+    dir_dados: Path = field(default_factory=_dir_dados_padrao)
+    host: str = "0.0.0.0"  # noqa: S104 - rede local da loja; ver README (não abrir porta no roteador)
+    porta: int = 8765
+    sessao_minutos: int = 30
+    max_tentativas_login: int = 5
+    bloqueio_minutos: int = 15
+    senha_tamanho_minimo: int = 6
+    busy_timeout_ms: int = 5000
+    modo_dev: bool = False
+    nome_loja: str = "Papelaria"  # padrão; a dona altera em Configurações
+    agendar_backup: bool = True  # backup diário automático (desligado nos testes)
+    # Nomes extras aceitos no cabeçalho Host (além de localhost, IPs da rede e nome do PC).
+    hosts_extras: tuple[str, ...] = ()
+
+    @property
+    def caminho_banco(self) -> Path:
+        return self.dir_dados / "caixa.db"
+
+    @property
+    def url_banco(self) -> str:
+        return f"sqlite:///{self.caminho_banco.as_posix()}"
+
+    @property
+    def dir_logs(self) -> Path:
+        return self.dir_dados / "logs"
+
+
+@lru_cache
+def obter_config() -> Config:
+    dir_env = os.environ.get("CAIXA_DIR_DADOS")
+    return Config(
+        dir_dados=Path(dir_env) if dir_env else _dir_dados_padrao(),
+        porta=_int_env("CAIXA_PORTA", 8765),
+        sessao_minutos=_int_env("CAIXA_SESSAO_MINUTOS", 30),
+        modo_dev=os.environ.get("CAIXA_MODO_DEV") == "1",
+        nome_loja=os.environ.get("CAIXA_NOME_LOJA", "Papelaria"),
+        hosts_extras=tuple(
+            h.strip().lower() for h in os.environ.get("CAIXA_HOSTS", "").split(",") if h.strip()
+        ),
+    )

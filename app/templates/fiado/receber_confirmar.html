@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "fiado/_macros.html" import saldo, campos_ocultos %}
+{% block titulo %}Confirmar pagamento{% endblock %}
+{% block conteudo %}
+{% set c = previa.cliente %}
+<section class="cartao estreito">
+  <h1>Confira antes de gravar</h1>
+  <dl class="resumo-confirmacao">
+    <dt>Cliente</dt><dd>{{ c.nome }}</dd>
+    <dt>Dívida atual</dt><dd>{{ saldo(c.saldo_centavos) }}</dd>
+    <dt>Valor entregue</dt><dd>{{ previa.total_informado_centavos | reais }}</dd>
+    {% if previa.troco_centavos %}<dt>Troco a devolver</dt><dd class="numero-grande">{{ previa.troco_centavos | reais }}</dd>{% endif %}
+    {% for p in previa.partes %}<dt>Entra no caixa ({{ p.forma }})</dt><dd class="valor-entrada">{{ p.valor_centavos | reais }}</dd>{% endfor %}
+    {% if not previa.precisa_escolher %}<dt>Saldo depois</dt><dd>{{ saldo(previa.saldo_depois_centavos) }}</dd>{% endif %}
+  </dl>
+
+  <form method="post" action="/fiado/clientes/{{ c.id }}/receber" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    {% if previa.precisa_escolher %}
+    {{ campos_ocultos(valores, ('excedente', 'confirmar_valor_alto')) }}
+    <fieldset>
+      <legend>O valor é {{ previa.excesso_centavos | reais }} maior que a dívida. O que fazer?</legend>
+      {% if previa.pode_dar_troco %}
+      <label class="opcao"><input type="radio" name="excedente" value="troco" required checked> Devolver {{ previa.excesso_centavos | reais }} de troco</label>
+      {% endif %}
+      <label class="opcao"><input type="radio" name="excedente" value="credito" required {% if not previa.pode_dar_troco %}checked{% endif %}> Deixar {{ previa.excesso_centavos | reais }} de crédito para o cliente</label>
+    </fieldset>
+    <div class="acoes acoes-invertidas">
+      <button type="submit" name="etapa" value="revisar" class="botao botao-principal" autofocus>Continuar ↵</button>
+      <button type="submit" name="etapa" value="corrigir" class="botao" formnovalidate>← Corrigir</button>
+    </div>
+    {% else %}
+    {{ campos_ocultos(valores, ('confirmar_valor_alto',)) }}
+    {% if previa.valor_alto %}
+    <p class="aviso aviso-erro" role="alert">⚠ Valor muito alto. Confira se não digitou zeros a mais.</p>
+    <label class="opcao"><input type="checkbox" name="confirmar_valor_alto" value="1" required> Confirmo que o valor está correto</label>
+    {% endif %}
+    <div class="acoes acoes-invertidas">
+      <button type="submit" name="etapa" value="gravar" class="botao botao-principal" autofocus>Gravar ↵</button>
+      <button type="submit" name="etapa" value="corrigir" class="botao" formnovalidate>← Corrigir</button>
+    </div>
+    {% endif %}
+  </form>
+</section>
+{% endblock %}

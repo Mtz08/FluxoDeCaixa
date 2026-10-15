@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block titulo %}{{ rotulo }}{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>
+    {% if tipo == 'entrada' %}＋ Entrada (venda / serviço)
+    {% elif tipo == 'saida' %}－ Saída (despesa)
+    {% elif tipo == 'sangria' %}⬆ Sangria (tirar dinheiro da gaveta)
+    {% else %}⬇ Suprimento (colocar troco na gaveta){% endif %}
+  </h1>
+
+  <form method="post" action="/caixa/lancar/{{ tipo }}" class="formulario" data-lancamento>
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input type="hidden" name="chave" value="{{ chave }}">
+    <input type="hidden" name="etapa" value="revisar">
+
+    {% if tipo == 'entrada' %}
+      <p class="dica">Preencha uma ou mais formas (pagamento dividido).</p>
+      {% for f in formas %}
+      <label>{{ f.nome }}
+        <input name="parte_{{ f.id }}" value="{{ valores.get('parte_' ~ f.id, '') }}" data-moeda data-parte
+               {% if f.afeta_gaveta %}data-dinheiro{% endif %} inputmode="numeric" autocomplete="off"
+               placeholder="0,00" {% if loop.first %}autofocus{% endif %}>
+      </label>
+      {% endfor %}
+      <p class="total-ao-vivo">Total: <strong data-total>R$ 0,00</strong></p>
+      <fieldset class="troco">
+        <legend>Troco (opcional)</legend>
+        <label>Cliente entregou em dinheiro
+          <input name="recebido" value="{{ valores.get('recebido', '') }}" data-moeda data-recebido inputmode="numeric" autocomplete="off" placeholder="0,00">
+        </label>
+        <p>Troco: <strong data-troco>R$ 0,00</strong></p>
+      </fieldset>
+
+    {% else %}
+      <label>Valor
+        <input name="valor" value="{{ valores.get('valor', '') }}" data-moeda inputmode="numeric" autocomplete="off" placeholder="0,00" required autofocus>
+      </label>
+      {% if tipo == 'saida' %}
+      <label>Forma de pagamento
+        <select name="forma_id" required>
+          {% for f in formas %}<option value="{{ f.id }}" {% if valores.get('forma_id') == f.id|string %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Categoria
+        <select name="categoria_id" required>
+          <option value="">— escolha —</option>
+          {% for c in categorias %}<option value="{{ c.id }}" {% if valores.get('categoria_id') == c.id|string %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
+        </select>
+      </label>
+      {% else %}
+      <p class="dica">Sempre em dinheiro.</p>
+      {% endif %}
+    {% endif %}
+
+    <label>{% if tipo == 'sangria' %}Motivo (obrigatório){% else %}Descrição (opcional){% endif %}
+      <input name="descricao" value="{{ valores.get('descricao', '') }}" maxlength="200"
+             placeholder="{% if tipo == 'entrada' %}ex.: xerox, material escolar{% elif tipo == 'sangria' %}ex.: depósito no banco{% elif tipo == 'saida' %}ex.: conta de luz{% else %}ex.: reforço de troco{% endif %}"
+             {% if tipo == 'sangria' %}required{% endif %}>
+    </label>
+
+    <div class="acoes">
+      <a href="/" class="botao">Cancelar (Esc)</a>
+      <button type="submit" class="botao botao-principal">Continuar ↵</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

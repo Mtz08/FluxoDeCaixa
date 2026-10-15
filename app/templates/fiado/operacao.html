@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "fiado/_macros.html" import saldo %}
+{% block titulo %}Operação do fiado{% endblock %}
+{% block conteudo %}
+{% set titulos = {'abater': '✂ Abater / perdoar dívida', 'saldo-inicial': '📖 Saldo trazido do caderno', 'devolver': '↩ Devolver crédito em dinheiro'} %}
+<section class="cartao estreito">
+  <h1>{{ titulos[tipo] }}</h1>
+  <p><strong>{{ cliente.nome }}</strong> · {{ saldo(cliente.saldo_centavos) }}</p>
+  {% if tipo == 'abater' %}
+  <p class="dica">Use para desconto, devolução de mercadoria ou dívida perdoada. Não mexe no caixa.</p>
+  {% elif tipo == 'saldo-inicial' %}
+  <p class="dica">Para passar para o sistema o que o cliente já devia no caderno de papel. Informe a data da compra mais antiga.</p>
+  {% else %}
+  <p class="dica">O cliente tem crédito e quer o dinheiro de volta. Sai da gaveta como despesa.</p>
+  {% endif %}
+
+  <form method="post" action="/fiado/clientes/{{ cliente.id }}/operacao/{{ tipo }}" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <input type="hidden" name="chave" value="{{ chave }}">
+    <label>Valor
+      <input name="valor" value="{{ valores.get('valor', '') }}" data-moeda inputmode="numeric" autocomplete="off" placeholder="0,00" required autofocus>
+    </label>
+    {% if tipo == 'abater' %}
+    <label>Motivo (obrigatório)
+      <input name="motivo" value="{{ valores.get('motivo', '') }}" required minlength="3" maxlength="200" placeholder="ex.: devolveu um caderno">
+    </label>
+    {% elif tipo == 'saldo-inicial' %}
+    <label>Data da compra mais antiga
+      <input name="data" type="date" value="{{ valores.get('data', hoje) }}" max="{{ hoje }}" required>
+    </label>
+    <label>Descrição
+      <input name="descricao" value="{{ valores.get('descricao', '') }}" maxlength="200" placeholder="Saldo trazido do caderno">
+    </label>
+    {% endif %}
+    <div class="acoes acoes-invertidas">
+      <button type="submit" class="botao botao-principal">Gravar</button>
+      <a href="/fiado/clientes/{{ cliente.id }}" class="botao">Cancelar</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

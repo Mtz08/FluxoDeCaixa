@@ -1,0 +1,15 @@
+{# Valor com cor E texto/ícone: não depende só de cor. #}
+{% macro valor_movimento(m) -%}
+{%- if m.sinal > 0 -%}
+<span class="valor-entrada">▲ + {{ m.valor_centavos | reais }}</span>
+{%- else -%}
+<span class="valor-saida">▼ − {{ m.valor_centavos | reais }}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro diferenca(centavos) -%}
+{%- if centavos > 0 -%}<span class="valor-entrada">▲ Sobra de {{ centavos | reais }}</span>
+{%- elif centavos < 0 -%}<span class="valor-saida">▼ Falta de {{ (-centavos) | reais }}</span>
+{%- else -%}<span class="valor-entrada">✔ Caixa bateu (sem diferença)</span>
+{%- endif -%}
+{%- endmacro %}

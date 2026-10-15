@@ -1,0 +1,34 @@
+{# Saldo do cliente: + deve (vermelho ▼), − crédito (verde ▲). Sempre com texto. #}
+{% macro saldo(centavos) -%}
+{%- if centavos > 0 -%}<span class="valor-saida">Deve {{ centavos | reais }}</span>
+{%- elif centavos < 0 -%}<span class="valor-entrada">Crédito de {{ (-centavos) | reais }}</span>
+{%- else -%}<span class="valor-entrada">✔ Em dia</span>
+{%- endif -%}
+{%- endmacro %}
+
+{# Lançamento: + aumenta a dívida, − diminui. #}
+{% macro valor_lancamento(l) -%}
+{%- if l.sinal > 0 -%}<span class="valor-saida">▲ + {{ l.valor_centavos | reais }}</span>
+{%- else -%}<span class="valor-entrada">▼ − {{ l.valor_centavos | reais }}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{# Campos de autorização do administrador (para operador). #}
+{% macro autorizacao_admin(titulo="Autorização do administrador") -%}
+<fieldset>
+  <legend>{{ titulo }}</legend>
+  <label>Usuário do administrador
+    <input name="admin_login" required autocapitalize="none" autocomplete="off">
+  </label>
+  <label>Senha do administrador
+    <input name="admin_senha" type="password" required autocomplete="off">
+  </label>
+</fieldset>
+{%- endmacro %}
+
+{# Repete os campos já digitados como ocultos (tela de confirmação). #}
+{% macro campos_ocultos(valores, exceto=()) -%}
+{%- for nome, valor in valores.items() if nome not in exceto %}
+<input type="hidden" name="{{ nome }}" value="{{ valor }}">
+{%- endfor %}
+{%- endmacro %}

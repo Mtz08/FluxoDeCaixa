@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block titulo %}Confirmar {{ rotulo }}{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Confira antes de gravar</h1>
+  <dl class="resumo-confirmacao">
+    <dt>Tipo</dt><dd>{{ rotulo }}</dd>
+    {% for p in previa.partes %}
+    <dt>{{ p.forma }}</dt><dd>{{ p.valor_centavos | reais }}</dd>
+    {% endfor %}
+    <dt>Total</dt><dd class="{{ 'valor-entrada' if tipo in ('entrada', 'suprimento') else 'valor-saida' }}"><strong>{{ '▲ +' if tipo in ('entrada', 'suprimento') else '▼ −' }} {{ previa.total_centavos | reais }}</strong></dd>
+    {% if previa.categoria %}<dt>Categoria</dt><dd>{{ previa.categoria }}</dd>{% endif %}
+    {% if previa.descricao %}<dt>{{ 'Motivo' if tipo == 'sangria' else 'Descrição' }}</dt><dd>{{ previa.descricao }}</dd>{% endif %}
+  </dl>
+  <p class="dica">Depois de gravado, só é possível corrigir por estorno.</p>
+
+  <form method="post" action="/caixa/lancar/{{ tipo }}" class="formulario">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    {% for nome, valor in valores.items() if nome != 'confirmar_valor_alto' %}
+    <input type="hidden" name="{{ nome }}" value="{{ valor }}">
+    {% endfor %}
+    {% if previa.valor_alto %}
+    <p class="aviso aviso-erro" role="alert">⚠ Valor muito alto. Confira se não digitou zeros a mais.</p>
+    <label class="opcao"><input type="checkbox" name="confirmar_valor_alto" value="1" required> Confirmo que o valor está correto</label>
+    {% endif %}
+    {# "Gravar" vem primeiro no HTML: é o botão acionado pelo Enter. O CSS inverte a ordem visual. #}
+    <div class="acoes acoes-invertidas">
+      <button type="submit" name="etapa" value="gravar" class="botao botao-principal" autofocus>Gravar ↵</button>
+      <button type="submit" name="etapa" value="corrigir" class="botao" formnovalidate>← Corrigir</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

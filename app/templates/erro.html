@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block titulo %}Atenção{% endblock %}
+{% block conteudo %}
+<section class="cartao estreito">
+  <h1>Não foi possível continuar</h1>
+  <p class="aviso aviso-erro" role="alert">✖ {{ mensagem }}</p>
+  <a href="/" class="botao">Voltar ao início</a>
+</section>
+{% endblock %}

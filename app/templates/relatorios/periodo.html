@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% block titulo %}Relatórios{% endblock %}
+{% block conteudo %}
+{% set t = rel.total %}
+{% set p = rel.periodo %}
+<div class="titulo-com-acao">
+  <h1>📊 Relatórios · {{ p.rotulo }}</h1>
+  <div class="acoes">
+    <a href="/relatorios/pdf?{{ consulta }}" class="botao">⬇ PDF</a>
+    <button type="button" class="botao" data-imprimir>🖨 Imprimir</button>
+  </div>
+</div>
+
+<section class="cartao">
+  <nav class="abas" aria-label="Período">
+    <a href="/relatorios?preset=hoje" {% if p.preset == 'hoje' %}aria-current="page"{% endif %}>Hoje</a>
+    <a href="/relatorios?preset=semana" {% if p.preset == 'semana' %}aria-current="page"{% endif %}>Semana</a>
+    <a href="/relatorios?preset=mes" {% if p.preset == 'mes' %}aria-current="page"{% endif %}>Mês</a>
+  </nav>
+  <form method="get" action="/relatorios" class="periodo-personalizado">
+    <input type="hidden" name="preset" value="personalizado">
+    <label>De <input type="date" name="inicio" value="{{ p.inicio }}" required></label>
+    <label>Até <input type="date" name="fim" value="{{ p.fim }}" required></label>
+    <button type="submit" class="botao">Ver período</button>
+  </form>
+</section>
+
+<section class="cartoes-numeros">
+  <div class="cartao-numero"><span>Faturamento</span><strong class="valor-entrada">{{ t.faturamento_centavos | reais }}</strong><small>entradas + fiado recebido</small></div>
+  <div class="cartao-numero"><span>Despesas</span><strong class="valor-saida">{{ t.despesas_centavos | reais }}</strong></div>
+  <div class="cartao-numero"><span>Resultado</span><strong>{{ rel.resultado_centavos | reais }}</strong><small>faturamento − despesas</small></div>
+  <div class="cartao-numero"><span>Vendas fiado</span><strong>{{ rel.fiado.compras_centavos | reais }}</strong><small>compras anotadas</small></div>
+  <div class="cartao-numero"><span>Fiado recebido</span><strong>{{ rel.fiado.recebido_centavos | reais }}</strong></div>
+  <div class="cartao-numero"><span>A receber (hoje)</span><strong class="valor-saida">{{ rel.a_receber.total_a_receber_centavos | reais }}</strong><small>{{ rel.a_receber.clientes_devendo }} cliente(s)</small></div>
+</section>
+
+<section class="cartao">
+  <h2>Por forma de pagamento</h2>
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>Forma</th><th class="num">Recebido</th><th class="num">Pago (despesas)</th></tr></thead>
+    <tbody>
+    {% for f in t.por_forma %}<tr><td>{{ f.forma }}</td><td class="num">{{ f.recebido_centavos | reais }}</td><td class="num">{{ f.pago_centavos | reais }}</td></tr>
+    {% else %}<tr><td colspan="3" class="dica">Sem movimento no período.</td></tr>{% endfor %}
+    </tbody>
+    <tfoot><tr class="linha-total"><th>Total</th><td class="num">{{ t.faturamento_centavos | reais }}</td><td class="num">{{ t.despesas_centavos | reais }}</td></tr></tfoot>
+  </table>
+  </div>
+  <p class="dica">Sangrias: {{ t.por_tipo.get('sangria', 0) | reais }} · Suprimentos: {{ t.por_tipo.get('suprimento', 0) | reais }} (movimentação de dinheiro, não é receita nem despesa).</p>
+</section>
+
+{% if rel.dias | length > 1 %}
+<section class="cartao">
+  <h2>Fluxo de caixa por dia</h2>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Data</th><th class="num">Entradas</th><th class="num">Fiado recebido</th><th class="num">Saídas</th><th class="num">Sangrias</th><th class="num">Suprimentos</th><th class="num">Resultado</th></tr></thead>
+    <tbody>
+    {% for d in rel.dias %}
+      <tr>
+        <td>{{ d.dia | data }}</td>
+        <td class="num">{{ d.resumo.por_tipo.get('entrada', 0) | reais }}</td>
+        <td class="num">{{ d.resumo.por_tipo.get('recebimento_fiado', 0) | reais }}</td>
+        <td class="num">{{ d.resumo.por_tipo.get('saida', 0) | reais }}</td>
+        <td class="num">{{ d.resumo.por_tipo.get('sangria', 0) | reais }}</td>
+        <td class="num">{{ d.resumo.por_tipo.get('suprimento', 0) | reais }}</td>
+        <td class="num"><strong>{{ d.resultado_centavos | reais }}</strong></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+
+<section class="cartao">
+  <h2>Despesas por categoria</h2>
+  <div class="rolagem">
+  <table class="tabela">
+    <thead><tr><th>Categoria</th><th class="num">Total</th></tr></thead>
+    <tbody>
+    {% for c in rel.categorias %}<tr><td>{{ c.categoria }}</td><td class="num">{{ c.total_centavos | reais }}</td></tr>
+    {% else %}<tr><td colspan="2" class="dica">Sem despesas no período.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="cartao">
+  <h2>Fechamentos de caixa</h2>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>#</th><th>Fechado em</th><th>Por</th><th class="num">Esperado</th><th class="num">Contado</th><th class="num">Diferença</th><th>Justificativa</th></tr></thead>
+    <tbody>
+    {% for s in rel.fechamentos %}
+      <tr>
+        <td><a href="/caixa/sessoes/{{ s.id }}">{{ s.id }}</a></td>
+        <td>{{ s.fechada_em | data_hora }}</td>
+        <td>{{ s.usuario_fechamento.nome if s.usuario_fechamento }}</td>
+        <td class="num">{{ s.valor_esperado_centavos | reais }}</td>
+        <td class="num">{{ s.valor_contado_centavos | reais }}</td>
+        <td class="num">{% if s.diferenca_centavos > 0 %}<span class="valor-entrada">▲ sobra {{ s.diferenca_centavos | reais }}</span>{% elif s.diferenca_centavos < 0 %}<span class="valor-saida">▼ falta {{ (-s.diferenca_centavos) | reais }}</span>{% else %}✔ ok{% endif %}</td>
+        <td>{{ s.justificativa or '' }}</td>
+      </tr>
+    {% else %}<tr><td colspan="7" class="dica">Nenhum caixa fechado no período.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if rel.operadores %}
+  <h3>Diferenças por operador</h3>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Operador</th><th class="num">Fechamentos</th><th class="num">Sobras</th><th class="num">Faltas</th><th class="num">Saldo</th></tr></thead>
+    <tbody>
+    {% for o in rel.operadores %}
+      <tr><td>{{ o.nome }}</td><td class="num">{{ o.fechamentos }}</td><td class="num">{{ o.sobras_centavos | reais }}</td><td class="num">{{ o.faltas_centavos | reais }}</td><td class="num">{{ o.saldo_centavos | reais }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="cartao">
+  <h2>Fiado</h2>
+  <table class="tabela tabela-compacta">
+    <tr><th>Vendas fiado no período (compras anotadas)</th><td class="num">{{ rel.fiado.compras_centavos | reais }}</td></tr>
+    <tr><th>Recebido no período</th><td class="num">{{ rel.fiado.recebido_centavos | reais }}</td></tr>
+    <tr><th>Abatimentos / perdões</th><td class="num">{{ rel.fiado.abatimentos_centavos | reais }}</td></tr>
+    {% if rel.fiado.saldo_inicial_centavos %}<tr><th>Saldos trazidos do caderno</th><td class="num">{{ rel.fiado.saldo_inicial_centavos | reais }}</td></tr>{% endif %}
+  </table>
+  <h3>Clientes em atraso (30 dias ou mais)</h3>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Cliente</th><th class="num">Saldo</th><th>Desde</th><th>Faixa</th></tr></thead>
+    <tbody>
+    {% for linha in rel.a_receber.linhas if linha.dias is not none and linha.dias >= 30 %}
+      <tr><td><a href="/fiado/clientes/{{ linha.cliente.id }}">{{ linha.cliente.nome }}</a></td><td class="num">{{ linha.saldo_centavos | reais }}</td><td>{{ linha.desde | data }}</td><td><span class="etiqueta etiqueta-amarela">⚠ {{ linha.faixa }}</span></td></tr>
+    {% else %}<tr><td colspan="4" class="dica">Nenhum cliente com 30 dias ou mais em aberto.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="cartao sem-impressao">
+  <h2>Exportar planilhas (CSV)</h2>
+  <p class="dica">Abrem direto no Excel. Use para conferência ou para enviar ao escritório de contabilidade.
+     A planilha de fiado contém nomes de clientes: compartilhe só com quem precisa.</p>
+  <ul class="lista-downloads">
+    <li><a href="/relatorios/csv/lancamentos?{{ consulta }}">Lançamentos do caixa (detalhado)</a></li>
+    <li><a href="/relatorios/csv/fluxo-diario?{{ consulta }}">Fluxo de caixa por dia</a></li>
+    <li><a href="/relatorios/csv/formas-pagamento?{{ consulta }}">Totais por forma de pagamento</a></li>
+    <li><a href="/relatorios/csv/despesas?{{ consulta }}">Despesas por categoria</a></li>
+    <li><a href="/relatorios/csv/fechamentos?{{ consulta }}">Fechamentos de caixa</a></li>
+    <li><a href="/relatorios/csv/fiado-a-receber?{{ consulta }}">Fiado a receber (com nomes)</a></li>
+  </ul>
+</section>
+<p class="dica rodape-impressao">Relatório gerencial interno — não é documento fiscal.</p>
+{% endblock %}

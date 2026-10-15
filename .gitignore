@@ -1,0 +1,18 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.env
+# dados reais nunca vão para o repositório
+dados/
+*.db
+*.db-wal
+*.db-shm
+*.log
+*.egg-info/
+build/
+dist/
