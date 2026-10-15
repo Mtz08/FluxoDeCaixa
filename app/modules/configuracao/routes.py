@@ -27,6 +27,7 @@ router = APIRouter(prefix="/configuracoes")
 def _contexto(db: Session, cfg: Config, request: Request) -> dict[str, Any]:
     base: Config = request.app.state.config
     urls = service.enderecos_locais(base.porta)
+    remotos = service.enderecos_remotos(base.porta)
     return {
         "prefs": service.carregar(db, base),
         "formas": service.listar_formas(db),
@@ -34,6 +35,8 @@ def _contexto(db: Session, cfg: Config, request: Request) -> dict[str, Any]:
         "backup": backup.situacao(db, base),
         "urls": urls,
         "qr": service.qr_code(urls[0]) if urls else None,
+        "remotos": remotos,
+        "qr_remoto": service.qr_code(remotos[0]) if remotos else None,
         "pasta_dados": str(base.dir_dados),
     }
 

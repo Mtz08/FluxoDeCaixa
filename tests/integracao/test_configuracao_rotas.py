@@ -37,7 +37,13 @@ def test_pagina_de_configuracoes_e_permissao(
 
     entrar(cliente, "maria", SENHA_ADMIN)
     pagina = cliente.get("/configuracoes").text
-    for trecho in ("Backup", "Acessar pelo celular", "Formas de pagamento", "Verificar os dados"):
+    for trecho in (
+        "Backup",
+        "Acessar pelo celular",
+        "De fora da loja",
+        "Formas de pagamento",
+        "Verificar os dados",
+    ):
         assert trecho in pagina
 
 

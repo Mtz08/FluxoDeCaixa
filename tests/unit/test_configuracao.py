@@ -98,6 +98,10 @@ def test_endereco_e_qr_code_para_celular() -> None:
     assert service.qr_code("http://192.168.0.10:8765").startswith("data:image/svg+xml")
     assert service._ip_privado("192.168.1.5") and service._ip_privado("172.20.0.1")
     assert not service._ip_privado("8.8.8.8") and not service._ip_privado("172.32.0.1")
+    assert service._ip_tailscale("100.64.0.1") and service._ip_tailscale("100.127.255.254")
+    assert not service._ip_tailscale("100.128.0.1") and not service._ip_tailscale("192.168.0.1")
+    for url in service.enderecos_remotos(8765):
+        assert url.startswith("http://100.")
 
 
 # ---------------------------------------------------------------- CPF / endereço (opcionais)

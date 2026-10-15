@@ -76,4 +76,5 @@ def host_permitido(host: str, cfg: Config) -> bool:
         ip = ipaddress.ip_address(nome)
     except ValueError:
         return False
-    return ip.is_loopback or ip.is_private
+    # 100.64.0.0/10: rede privada da Tailscale (acesso de fora da loja sem expor na internet).
+    return ip.is_loopback or ip.is_private or ip in ipaddress.ip_network("100.64.0.0/10")

@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.1.0] - 2026-10-15
+
+### Adicionado
+- Acesso de fora da loja pela Tailscale (rede privada criptografada), sem expor o sistema na
+  internet: endereços `100.64.0.0/10` aceitos, endereço e QR Code em Configurações, script
+  `liberar_acesso_remoto.bat` (firewall só para essa faixa) e passo a passo no manual.
+
 ## [1.0.0] - 2026-10-15
 
 Primeira versão completa (Fase 1: caixa + fiado).

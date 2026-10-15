@@ -85,6 +85,8 @@ def test_todo_post_exige_csrf(cliente: TestClient, admin: Usuario, cfg: Config) 
         ("192.168.1.202:8765", True),
         ("10.0.0.5", True),
         ("172.16.3.4:8765", True),
+        ("100.101.102.103:8765", True),  # Tailscale (acesso de fora da loja)
+        ("100.128.0.1:8765", False),  # fora da faixa da Tailscale
         ("site-malicioso.com", False),  # DNS rebinding
         ("site-malicioso.com:8765", False),
         ("8.8.8.8:8765", False),

@@ -101,8 +101,33 @@ de contabilidade. A planilha de fiado tem nomes de clientes: envie só a quem pr
 3. No sistema, vá em **Configurações › Acessar pelo celular** e aponte a câmera do celular para o
    **QR Code** (o celular precisa estar no mesmo Wi-Fi). Entre com o mesmo usuário e senha.
 
-> **Nunca** peça para "abrir a porta" do sistema no roteador. Ele foi feito para funcionar só
-> dentro da loja.
+> **Nunca** peça para "abrir a porta" do sistema no roteador. Para acessar de fora da loja, use
+> a Tailscale (abaixo), que é segura.
+
+## Acessar de fora da loja (casa, rua) — com Tailscale
+
+A **Tailscale** cria uma rede particular e criptografada entre o computador da loja e o seu
+celular. Só os aparelhos entrados na **sua conta** conseguem abrir o sistema; para o resto da
+internet ele continua invisível. É gratuita para uso pessoal.
+
+**No computador da loja (uma vez):**
+1. Baixe em **tailscale.com/download**, instale e entre com a sua conta (Google ou Microsoft).
+2. No ícone da Tailscale (perto do relógio), deixe marcado para **iniciar com o Windows**.
+3. Dê dois cliques em `scripts\liberar_acesso_remoto.bat` e aceite o pedido de permissão.
+4. No painel da Tailscale na internet (login.tailscale.com › Machines), clique nos três pontinhos
+   do computador da loja › **Disable key expiry**, para ele não desconectar sozinho a cada 6 meses.
+
+**No celular:**
+1. Instale o app **Tailscale** (Play Store / App Store) e entre com a **mesma conta**.
+2. Ligue a Tailscale no app.
+3. No sistema, em **Configurações › Acessar pelo celular › De fora da loja**, aponte a câmera para
+   o QR Code (ou digite o endereço que começa com `http://100.`). Entre com seu usuário e senha.
+
+**Cuidados:**
+- O computador da loja precisa estar **ligado** e com o sistema aberto.
+- Não adicione à sua conta Tailscale aparelhos de outras pessoas.
+- Se perder o celular: no painel da Tailscale, remova o aparelho (Machines › Remove) e troque a
+  sua senha do sistema.
 
 ## Backup (cópia de segurança) — configure no primeiro dia!
 
@@ -195,6 +220,7 @@ Cada módulo: `models` (tabelas) · `schemas` (validação) · `repository` (con
 ```bat
 scripts\instalar.bat          :: instala ou ATUALIZA (os dados não são apagados)
 scripts\liberar_celular.bat   :: regra de firewall: porta 8765, perfil Privado, só sub-rede local
+scripts\liberar_acesso_remoto.bat :: acesso de fora da loja: só a faixa da Tailscale (100.64.0.0/10)
 scripts\iniciar.bat           :: liga o servidor (se preciso) e abre o navegador
 scripts\iniciar_com_windows.bat
 ```
@@ -296,7 +322,12 @@ dependências fixadas e auditadas com pip-audit.
 **Limites aceitos (avalie se mudarem as condições):**
 - **HTTP sem TLS na rede local:** a senha trafega sem criptografia **dentro** da rede da loja.
   Proteção: Wi-Fi com WPA2/WPA3 e senha forte, sem rede de clientes misturada. HTTPS com
-  certificado próprio exigiria instalar o certificado em cada celular.
+  certificado próprio exigiria instalar o certificado em cada celular. (O acesso de fora da loja
+  pela Tailscale já é criptografado de ponta a ponta pelo WireGuard.)
+- **Acesso remoto pela Tailscale:** o Host `100.64.0.0/10` é aceito e a regra de firewall
+  (`liberar_acesso_remoto.bat`) só libera essa faixa. A segurança depende da conta Tailscale
+  (use 2 fatores na conta Google/Microsoft) e de não compartilhar a tailnet. O servidor de
+  coordenação da Tailscale vê só metadados (quais aparelhos), não o conteúdo.
 - **Bloqueio do admin por terceiros:** 5 senhas de admin erradas (ex.: ao pedir autorização de
   estorno) bloqueiam o admin por 15 minutos. Recurso: esperar ou `recuperar_admin.bat`.
 - **Senha do backup no PC:** protegida pela DPAPI (vale para o usuário do Windows). Protege as

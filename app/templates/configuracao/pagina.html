@@ -91,6 +91,22 @@
   {% else %}
   <p class="aviso aviso-erro">⚠ Não encontrei este computador numa rede local. Verifique se está conectado ao Wi-Fi ou ao cabo.</p>
   {% endif %}
+
+  <h3>🌐 De fora da loja (Tailscale)</h3>
+  {% if remotos %}
+  <div class="celular">
+    <img src="{{ qr_remoto }}" alt="QR Code com o endereço {{ remotos[0] }}" width="180" height="180">
+    <div>
+      <p>Com o aplicativo <strong>Tailscale ligado no celular</strong> (mesma conta do computador), use:</p>
+      {% for url in remotos %}<p class="endereco">{{ url }}</p>{% endfor %}
+      <p class="dica">Funciona de qualquer lugar, com conexão criptografada. Só aparelhos da sua conta Tailscale
+        conseguem acessar; para o resto da internet o sistema continua invisível. O computador da loja precisa estar ligado.</p>
+    </div>
+  </div>
+  {% else %}
+  <p class="dica">Desligado. Para acessar de casa ou da rua sem expor o sistema na internet, instale a
+    Tailscale neste computador e no celular (veja o manual: "Acessar de fora da loja").</p>
+  {% endif %}
 </section>
 
 {# ------------------------------------------------------------ gerais #}

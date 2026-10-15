@@ -3,6 +3,7 @@ e o endereço/QR Code para abrir o sistema no celular."""
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 import socket
@@ -253,12 +254,22 @@ def alternar_categoria(
 # ---------------------------------------------------------------- acesso pelo celular
 
 
+# Faixa usada pela Tailscale (rede privada criptografada para acesso de fora da loja).
+FAIXA_TAILSCALE = ipaddress.ip_network("100.64.0.0/10")
+
+
 def _ip_privado(ip: str) -> bool:
     return ip.startswith(("192.168.", "10.")) or bool(re.match(r"^172\.(1[6-9]|2\d|3[01])\.", ip))
 
 
-def enderecos_locais(porta: int) -> list[str]:
-    """Endereços deste PC na rede da loja (Wi-Fi/cabo). Funciona sem internet."""
+def _ip_tailscale(ip: str) -> bool:
+    try:
+        return ipaddress.ip_address(ip) in FAIXA_TAILSCALE
+    except ValueError:
+        return False
+
+
+def _ips_deste_pc() -> set[str]:
     ips: set[str] = set()
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
@@ -272,8 +283,17 @@ def enderecos_locais(porta: int) -> list[str]:
             ips.add(teste.getsockname()[0])
     except OSError:
         pass
-    privados = sorted(ip for ip in ips if _ip_privado(ip))
-    return [f"http://{ip}:{porta}" for ip in privados]
+    return ips
+
+
+def enderecos_locais(porta: int) -> list[str]:
+    """Endereços deste PC na rede da loja (Wi-Fi/cabo). Funciona sem internet."""
+    return [f"http://{ip}:{porta}" for ip in sorted(filter(_ip_privado, _ips_deste_pc()))]
+
+
+def enderecos_remotos(porta: int) -> list[str]:
+    """Endereços pela Tailscale (acesso de fora da loja, só para aparelhos autorizados)."""
+    return [f"http://{ip}:{porta}" for ip in sorted(filter(_ip_tailscale, _ips_deste_pc()))]
 
 
 def qr_code(url: str) -> str:
