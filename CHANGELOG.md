@@ -4,6 +4,20 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.2.0] - 2026-10-15
+
+### Adicionado
+- Modo nuvem (publicar como site): `CAIXA_URL_PUBLICA`, cookies `Secure` + HSTS, IP real
+  do visitante vindo do proxy, domínio público aceito no Host (IP direto recusado), endereço
+  público no QR Code e pasta de backup padrão no servidor.
+- Limite de tentativas de login por aparelho/IP (20 em 15 minutos), além do bloqueio por usuário.
+- Botão **Baixar backup** (cópia criptografada para o computador da dona) e, no modo nuvem,
+  aviso na tela inicial se passar de 7 dias sem baixar.
+- Pacote de publicação: `Dockerfile` (usuário sem privilégios), `docker-compose.yml` com Caddy
+  (HTTPS automático, porta do sistema não exposta), `.env.exemplo` e o roteiro
+  `docs/PUBLICAR_NA_NUVEM.md` (Oracle Cloud grátis + DuckDNS).
+- Senha do backup em servidores Linux gravada com permissão só do dono (0600).
+
 ## [1.1.0] - 2026-10-15
 
 ### Adicionado

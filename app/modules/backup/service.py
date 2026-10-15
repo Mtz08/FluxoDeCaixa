@@ -24,10 +24,11 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-from sqlalchemy import Engine, select
+from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core import auditoria
+from app.core.auditoria import Auditoria
 from app.core.config import Config
 from app.core.datas import FUSO_LOJA, agora_utc, formatar_data_hora, hoje_local, para_local
 from app.core.erros import ErroNegocio, SemPermissao
@@ -232,6 +233,44 @@ def _executar(
     return resultado
 
 
+# ---------------------------------------------------------------- baixar cópia
+
+
+DIAS_ALERTA_DOWNLOAD = 7
+
+
+def gerar_para_download(
+    cfg: Config, db: Session, admin: Usuario, ip: str | None
+) -> tuple[str, bytes]:
+    """Backup criptografado para a dona guardar no computador/pendrive dela.
+
+    No modo nuvem é a proteção principal: se o servidor sumir, a cópia está com ela.
+    """
+    if not admin.eh_admin:
+        raise SemPermissao("Só o administrador baixa backups.")
+    senha = cripto.ler_senha(cfg.dir_dados)
+    if not senha:
+        raise ErroNegocio("Defina antes a senha do backup (Configurações → Backup).")
+    db.rollback()  # não segurar o banco durante a cópia
+    conteudo = cripto.cifrar(instantaneo(cfg), senha)
+    nome = nome_arquivo(Gatilho.MANUAL, agora_utc()).replace("_manual", "_baixado")
+    auditoria.registrar(
+        db,
+        acao="backup_baixado",
+        entidade="backup",
+        usuario_id=admin.id,
+        depois={"arquivo": nome, "tamanho_bytes": len(conteudo)},
+        ip=ip,
+    )
+    db.commit()
+    return nome, conteudo
+
+
+def ultimo_download(db: Session) -> datetime | None:
+    consulta = select(func.max(Auditoria.criado_em)).where(Auditoria.acao == "backup_baixado")
+    return db.scalar(consulta)
+
+
 # ---------------------------------------------------------------- situação e alertas
 
 
@@ -260,6 +299,20 @@ def situacao(db: Session, cfg: Config) -> Situacao:
 def alerta(db: Session, cfg: Config) -> str | None:
     """Mensagem para a tela inicial, ou None se está tudo certo."""
     s = situacao(db, cfg)
+    if cfg.modo_nuvem:
+        if not s.senha_definida:
+            return "Defina a senha do backup em Configurações → Backup."
+        baixado = ultimo_download(db)
+        if baixado is None:
+            return (
+                "Baixe uma cópia do backup para o seu computador (Configurações → Baixar backup)."
+            )
+        dias = (agora_utc() - baixado).days
+        if dias >= DIAS_ALERTA_DOWNLOAD:
+            return (
+                f"A última cópia do backup baixada para o seu computador foi há {dias} dias. "
+                "Baixe uma nova."
+            )
     if not s.configurado:
         return "O backup ainda não foi configurado. Vá em Configurações → Backup."
     if s.ultimo_ok is None:

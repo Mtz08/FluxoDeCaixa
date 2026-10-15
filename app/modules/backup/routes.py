@@ -9,7 +9,7 @@ from app.core.config import Config
 from app.core.deps import exigir_admin, ip_cliente, obter_cfg, obter_db
 from app.core.erros import ErroNegocio
 from app.core.seguranca import COOKIE_SESSAO
-from app.core.templates import redirecionar, renderizar
+from app.core.templates import opcoes_cookie, redirecionar, renderizar
 from app.modules.auth import service as auth_service
 from app.modules.auth.models import Usuario
 from app.modules.backup import service
@@ -38,6 +38,25 @@ def backup_agora(
         )
     return redirecionar(
         request, "/configuracoes#backup", f"Backup feito em {len(registros)} pasta(s)."
+    )
+
+
+@router.get("/baixar")
+def baixar(
+    request: Request,
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+) -> Response:
+    try:
+        nome, conteudo = service.gerar_para_download(
+            request.app.state.config, db, admin, ip_cliente(request)
+        )
+    except ErroNegocio as e:
+        return redirecionar(request, "/configuracoes#backup", e.mensagem, erro=True)
+    return Response(
+        conteudo,
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
     )
 
 
@@ -99,5 +118,5 @@ async def restaurar(
         "/login",
         f"Backup restaurado. Entre novamente. Cópia do estado anterior: {copia.name}",
     )
-    resposta.delete_cookie(COOKIE_SESSAO)
+    resposta.delete_cookie(COOKIE_SESSAO, **opcoes_cookie(request))
     return resposta

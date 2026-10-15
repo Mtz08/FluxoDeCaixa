@@ -1,0 +1,34 @@
+# Publicação na nuvem: sistema + Caddy (HTTPS automático e gratuito via Let's Encrypt).
+# Uso no servidor:  cp .env.exemplo .env  (edite)  &&  docker compose up -d --build
+services:
+  caixa:
+    build: .
+    restart: unless-stopped
+    environment:
+      CAIXA_URL_PUBLICA: "https://${DOMINIO:?defina DOMINIO no arquivo .env}"
+      CAIXA_NOME_LOJA: "${NOME_LOJA:-Papelaria}"
+    volumes:
+      - dados:/dados
+    # Porta NÃO publicada: só o Caddy (rede interna do Docker) alcança o sistema.
+    expose:
+      - "8765"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - caixa
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: "${DOMINIO}"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_dados:/data
+      - caddy_config:/config
+
+volumes:
+  dados:          # banco, backups, logs e senha do backup — NÃO apague
+  caddy_dados:    # certificados HTTPS
+  caddy_config:

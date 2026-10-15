@@ -39,6 +39,15 @@ class Config:
     agendar_backup: bool = True  # backup diário automático (desligado nos testes)
     # Nomes extras aceitos no cabeçalho Host (além de localhost, IPs da rede e nome do PC).
     hosts_extras: tuple[str, ...] = ()
+    # ---- Modo nuvem (sistema publicado como site; ver docs/PUBLICAR_NA_NUVEM.md) ----
+    url_publica: str | None = None  # ex.: https://minhapapelaria.duckdns.org
+    cookies_seguros: bool = False  # cookies só por HTTPS (+ HSTS)
+    atras_de_proxy: bool = False  # IP real do visitante vem do proxy (Caddy)
+    pasta_backup_padrao: str | None = None  # pasta de backup quando a dona não configurar outra
+
+    @property
+    def modo_nuvem(self) -> bool:
+        return self.url_publica is not None
 
     @property
     def caminho_banco(self) -> Path:
@@ -65,4 +74,8 @@ def obter_config() -> Config:
         hosts_extras=tuple(
             h.strip().lower() for h in os.environ.get("CAIXA_HOSTS", "").split(",") if h.strip()
         ),
+        url_publica=os.environ.get("CAIXA_URL_PUBLICA") or None,
+        cookies_seguros=os.environ.get("CAIXA_COOKIES_SEGUROS") == "1",
+        atras_de_proxy=os.environ.get("CAIXA_ATRAS_DE_PROXY") == "1",
+        pasta_backup_padrao=os.environ.get("CAIXA_PASTA_BACKUP") or None,
     )

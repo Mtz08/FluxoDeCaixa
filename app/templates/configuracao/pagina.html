@@ -23,9 +23,14 @@
       <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
       <button type="submit" class="botao botao-principal" {% if not b.configurado %}disabled{% endif %}>💾 Fazer backup agora</button>
     </form>
+    <a href="/backup/baixar" class="botao{{ ' botao-principal' if modo_nuvem }}">⬇ Baixar backup para este aparelho</a>
     <a href="/backup/restaurar" class="botao">♻ Restaurar um backup…</a>
   </div>
 
+  {% if modo_nuvem %}
+  <p class="aviso aviso-erro">☁ O sistema está na nuvem. <strong>Toda semana, baixe uma cópia do backup</strong> e guarde no
+     computador e no pendrive: se o servidor gratuito sumir, é essa cópia que salva os dados.</p>
+  {% endif %}
   <h3>1. Senha do backup {% if b.senha_definida %}<span class="etiqueta etiqueta-verde">definida</span>{% else %}<span class="etiqueta etiqueta-amarela">não definida</span>{% endif %}</h3>
   <p class="dica">Os backups são criptografados com esta senha. <strong>Anote-a em papel e guarde fora da loja.</strong>
      Sem ela, nenhum backup pode ser aberto. Se trocar a senha, os backups antigos continuam abrindo só com a senha antiga.</p>

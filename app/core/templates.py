@@ -40,8 +40,14 @@ def renderizar(
     dados.update(contexto or {})
     resposta = templates.TemplateResponse(request, nome, dados, status_code=status)
     if aviso:
-        resposta.delete_cookie(COOKIE_AVISO)
+        resposta.delete_cookie(COOKIE_AVISO, **opcoes_cookie(request))
     return resposta
+
+
+def opcoes_cookie(request: Request) -> dict[str, Any]:
+    """Cookies sempre HttpOnly + SameSite=Strict; no modo nuvem (HTTPS), também Secure."""
+    seguro = bool(getattr(request.app.state.config, "cookies_seguros", False))
+    return {"httponly": True, "samesite": "strict", "secure": seguro}
 
 
 def redirecionar(
@@ -58,7 +64,6 @@ def redirecionar(
             COOKIE_AVISO,
             quote(_PREFIXO_ERRO + aviso if erro else aviso),
             max_age=60,
-            httponly=True,
-            samesite="strict",
+            **opcoes_cookie(request),
         )
     return resposta

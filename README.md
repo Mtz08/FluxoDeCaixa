@@ -178,6 +178,7 @@ antes uma cópia do estado atual.
 | Backup | cryptography (AES-256-GCM + scrypt), DPAPI do Windows via ctypes |
 | QR Code | segno |
 
+Publicar como site na nuvem: [docs/PUBLICAR_NA_NUVEM.md](docs/PUBLICAR_NA_NUVEM.md).
 Versões exatas testadas: `constraints.txt`. Regras de negócio confirmadas: [docs/REGRAS_NEGOCIO.md](docs/REGRAS_NEGOCIO.md).
 
 ### Estrutura

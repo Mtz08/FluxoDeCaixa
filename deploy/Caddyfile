@@ -1,0 +1,10 @@
+# Caddy: obtém e renova sozinho o certificado HTTPS do domínio (Let's Encrypt).
+{$DOMINIO} {
+	encode gzip
+	reverse_proxy caixa:8765
+	header -Server
+	# Arquivos de backup podem ter alguns MB; nada além disso precisa ser enviado.
+	request_body {
+		max_size 200MB
+	}
+}

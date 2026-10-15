@@ -25,10 +25,11 @@ from app.core.erros import (
     SemPermissao,
     SemUsuarios,
 )
+from app.core.limitador import LimitadorTentativas
 from app.core.logs import configurar_logs
 from app.core.migracoes import migrar
 from app.core.seguranca import COOKIE_CSRF, gerar_token, host_permitido
-from app.core.templates import redirecionar, renderizar
+from app.core.templates import opcoes_cookie, redirecionar, renderizar
 from app.modules.auth.routes import router as auth_router
 from app.modules.backup import agendador
 from app.modules.backup.routes import router as backup_router
@@ -55,6 +56,8 @@ def criar_app(cfg: Config | None = None) -> FastAPI:
         else:
             # Atualizações do sistema ajustam o banco sozinhas, sem perder dados.
             migrar(app.state.engine)
+        if cfg.pasta_backup_padrao:
+            Path(cfg.pasta_backup_padrao).mkdir(parents=True, exist_ok=True)
         tarefa = asyncio.create_task(agendador.rodar(app)) if cfg.agendar_backup else None
         log.info("Sistema iniciado")
         yield
@@ -76,6 +79,7 @@ def criar_app(cfg: Config | None = None) -> FastAPI:
     app.state.engine = criar_engine(cfg)
     app.state.fabrica_sessao = criar_fabrica_sessao(app.state.engine)
     app.state.banco_corrompido = False
+    app.state.limitador_login = LimitadorTentativas()
 
     app.mount("/static", StaticFiles(directory=DIR_APP / "static"), name="static")
     app.include_router(auth_router)
@@ -108,9 +112,7 @@ def _registrar_middlewares(app: FastAPI) -> None:
         resposta = await chamar(request)
 
         if novo:
-            resposta.set_cookie(
-                COOKIE_CSRF, request.state.csrf_token, httponly=True, samesite="strict"
-            )
+            resposta.set_cookie(COOKIE_CSRF, request.state.csrf_token, **opcoes_cookie(request))
         resposta.headers["X-Frame-Options"] = "DENY"
         resposta.headers["X-Content-Type-Options"] = "nosniff"
         resposta.headers["Referrer-Policy"] = "same-origin"
@@ -118,6 +120,9 @@ def _registrar_middlewares(app: FastAPI) -> None:
             "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
             "frame-ancestors 'none'; form-action 'self'"
         )
+        if app.state.config.cookies_seguros:
+            # Site em HTTPS: o navegador nunca mais tenta abrir por HTTP.
+            resposta.headers["Strict-Transport-Security"] = "max-age=31536000"
         if "text/html" in resposta.headers.get("content-type", ""):
             resposta.headers["Cache-Control"] = "no-store"
         return resposta

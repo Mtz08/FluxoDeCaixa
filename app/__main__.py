@@ -18,7 +18,10 @@ def principal() -> None:
         factory=True,
         host=cfg.host,
         port=cfg.porta,
-        proxy_headers=False,  # não há proxy: ninguém pode forjar o IP pelo cabeçalho
+        # Na loja não há proxy: ninguém pode forjar o IP pelo cabeçalho. Na nuvem, o Caddy é o
+        # único que alcança o sistema (porta não publicada no Docker), então o IP vem dele.
+        proxy_headers=cfg.atras_de_proxy,
+        forwarded_allow_ips="*" if cfg.atras_de_proxy else None,
         server_header=False,
         access_log=False,  # as URLs podem ter nome de cliente (busca): não registrar (LGPD)
     )

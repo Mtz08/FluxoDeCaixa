@@ -10,7 +10,7 @@ from app.core.config import Config
 from app.core.deps import exigir_admin, ip_cliente, obter_cfg, obter_db, usuario_logado
 from app.core.erros import ErroNegocio
 from app.core.seguranca import COOKIE_SESSAO
-from app.core.templates import redirecionar, renderizar
+from app.core.templates import opcoes_cookie, redirecionar, renderizar
 from app.modules.auth import service
 from app.modules.auth.models import Perfil, Usuario
 from app.modules.auth.schemas import EdicaoUsuario, NovoUsuario, primeira_mensagem
@@ -18,9 +18,9 @@ from app.modules.auth.schemas import EdicaoUsuario, NovoUsuario, primeira_mensag
 router = APIRouter()
 
 
-def _gravar_cookie_sessao(resposta: Response, token: str) -> None:
+def _gravar_cookie_sessao(request: Request, resposta: Response, token: str) -> None:
     # Sem max_age: some ao fechar o navegador. A expiração por inatividade é no servidor.
-    resposta.set_cookie(COOKIE_SESSAO, token, httponly=True, samesite="strict")
+    resposta.set_cookie(COOKIE_SESSAO, token, **opcoes_cookie(request))
 
 
 # ---------------------------------------------------------------- primeiro acesso
@@ -53,7 +53,7 @@ def primeiro_acesso(
         return renderizar(request, "auth/primeiro_acesso.html", contexto, status=400)
     token = service.iniciar_sessao(db, admin, ip)
     resposta = redirecionar(request, "/", "Administrador criado. Bem-vinda ao sistema!")
-    _gravar_cookie_sessao(resposta, token)
+    _gravar_cookie_sessao(request, resposta, token)
     return resposta
 
 
@@ -76,16 +76,22 @@ def login(
     cfg: Config = Depends(obter_cfg),
 ) -> Response:
     ip = ip_cliente(request)
+    limitador = request.app.state.limitador_login
+    if limitador.bloqueado(ip):
+        msg = "Muitas tentativas a partir deste aparelho. Espere 15 minutos e tente de novo."
+        return renderizar(request, "auth/login.html", {"erro": msg, "login": login}, status=429)
     try:
         usuario = service.autenticar(db, cfg, login, senha, ip)
     except ErroNegocio as erro:
+        limitador.registrar_falha(ip)
         contexto = {"erro": erro.mensagem, "login": login}
         return renderizar(request, "auth/login.html", contexto, status=400)
+    limitador.limpar(ip)
     # Troca rápida de operador: a sessão anterior neste navegador é encerrada.
     service.encerrar_sessao(db, request.cookies.get(COOKIE_SESSAO), ip)
     token = service.iniciar_sessao(db, usuario, ip)
     resposta = redirecionar(request, "/")
-    _gravar_cookie_sessao(resposta, token)
+    _gravar_cookie_sessao(request, resposta, token)
     return resposta
 
 
@@ -93,7 +99,7 @@ def login(
 def sair(request: Request, db: Session = Depends(obter_db)) -> Response:
     service.encerrar_sessao(db, request.cookies.get(COOKIE_SESSAO), ip_cliente(request))
     resposta = redirecionar(request, "/login")
-    resposta.delete_cookie(COOKIE_SESSAO)
+    resposta.delete_cookie(COOKIE_SESSAO, **opcoes_cookie(request))
     return resposta
 
 

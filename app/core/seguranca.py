@@ -13,6 +13,7 @@ import ipaddress
 import secrets
 import socket
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
@@ -71,6 +72,8 @@ def host_permitido(host: str, cfg: Config) -> bool:
     if not nome:
         return False
     if nome in {"localhost", socket.gethostname().lower()} or nome in cfg.hosts_extras:
+        return True
+    if cfg.url_publica and nome == (urlparse(cfg.url_publica).hostname or "").lower():
         return True
     try:
         ip = ipaddress.ip_address(nome)

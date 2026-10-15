@@ -48,9 +48,16 @@ def carregar(db: Session, base: Config) -> Preferencias:
         nome_loja=valores.get("nome_loja", base.nome_loja),
         sessao_minutos=int(valores.get("sessao_minutos", base.sessao_minutos)),
         cliente_campos_extras=valores.get("cliente_campos_extras") == "1",
-        backup_pastas=tuple(json.loads(valores.get("backup_pastas", "[]"))),
+        backup_pastas=_pastas_backup(valores, base),
         backup_hora=valores.get("backup_hora", "21:00"),
     )
+
+
+def _pastas_backup(valores: dict[str, str], base: Config) -> tuple[str, ...]:
+    """Pastas gravadas pela dona; sem nenhuma, a pasta padrão do servidor (modo nuvem)."""
+    if "backup_pastas" in valores:
+        return tuple(json.loads(valores["backup_pastas"]))
+    return (base.pasta_backup_padrao,) if base.pasta_backup_padrao else ()
 
 
 def config_efetiva(db: Session, base: Config) -> Config:

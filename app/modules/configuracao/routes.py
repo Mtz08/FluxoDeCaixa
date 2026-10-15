@@ -26,8 +26,11 @@ router = APIRouter(prefix="/configuracoes")
 
 def _contexto(db: Session, cfg: Config, request: Request) -> dict[str, Any]:
     base: Config = request.app.state.config
-    urls = service.enderecos_locais(base.porta)
-    remotos = service.enderecos_remotos(base.porta)
+    if base.url_publica:  # modo nuvem: o site tem um endereço só
+        urls, remotos = [base.url_publica], []
+    else:
+        urls = service.enderecos_locais(base.porta)
+        remotos = service.enderecos_remotos(base.porta)
     return {
         "prefs": service.carregar(db, base),
         "formas": service.listar_formas(db),
@@ -38,6 +41,7 @@ def _contexto(db: Session, cfg: Config, request: Request) -> dict[str, Any]:
         "remotos": remotos,
         "qr_remoto": service.qr_code(remotos[0]) if remotos else None,
         "pasta_dados": str(base.dir_dados),
+        "modo_nuvem": base.modo_nuvem,
     }
 
 

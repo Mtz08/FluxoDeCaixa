@@ -91,7 +91,8 @@ def _dpapi(dados: bytes, proteger: bool) -> bytes:
 def proteger(dados: bytes) -> bytes:
     if sys.platform == "win32":
         return _dpapi(dados, proteger=True)
-    log.warning("DPAPI indisponível fora do Windows: senha do backup sem proteção extra.")
+    # Servidor Linux: sem DPAPI. O arquivo fica com permissão só do dono (ver guardar_senha)
+    # dentro da pasta de dados, que não é acessível pela web.
     return dados
 
 
@@ -105,6 +106,8 @@ def guardar_senha(pasta_dados: Path, senha: str) -> None:
     pasta_dados.mkdir(parents=True, exist_ok=True)
     temporario = pasta_dados / (ARQUIVO_SENHA + ".tmp")
     temporario.write_bytes(proteger(senha.encode("utf-8")))
+    if sys.platform != "win32":
+        os.chmod(temporario, 0o600)
     os.replace(temporario, pasta_dados / ARQUIVO_SENHA)
 
 
