@@ -24,7 +24,7 @@ def test_assistente_de_primeiro_acesso_cria_admin_e_entra(cliente: TestClient) -
     )
     assert resposta.status_code == 303
     pagina = cliente.get("/")
-    assert "Dona Maria · Administrador" in pagina.text
+    assert "Dona Maria" in pagina.text and "Administrador" in pagina.text
     assert "Caixa fechado" in pagina.text
     assert "Administrador criado" in pagina.text
     # Depois de criado, o assistente não abre mais.

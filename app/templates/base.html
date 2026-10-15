@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b0f19">
   <meta name="htmx-config" content='{"includeIndicatorStyles": false}'>
   <title>{% block titulo %}Caixa{% endblock %} · Papelaria</title>
   <link rel="stylesheet" href="{{ url_for('static', path='css/app.css') }}">
@@ -10,19 +12,39 @@
   <script src="{{ url_for('static', path='js/app.js') }}" defer></script>
 </head>
 <body data-csrf="{{ csrf_token }}">
+  {% macro item_menu(url, rotulo) -%}
+    {%- set atual = request.url.path -%}
+    <a href="{{ url }}" {% if atual == url or (url != '/' and atual.startswith(url)) %}aria-current="page"{% endif %}>{{ rotulo }}</a>
+  {%- endmacro %}
   <header class="topo">
-    <a href="/" class="marca">Caixa da Papelaria</a>
+    <a href="/" class="marca" aria-label="Caixa da Papelaria — início">
+      <span class="marca-icone" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M7 15h3"/><path d="M8 6V4h8v2"/></svg>
+      </span>
+      <span class="marca-texto">Caixa<span> da Papelaria</span></span>
+    </a>
     {% if usuario %}
-    <nav class="menu">
-      <span class="quem">{{ usuario.nome }} · {{ "Administrador" if usuario.eh_admin else "Operador" }}</span>
-      {% if not usuario.trocar_senha %}<a href="/fiado">Fiado</a>{% endif %}
-      {% if usuario.eh_admin and not usuario.trocar_senha %}<a href="/relatorios">Relatórios</a> <a href="/usuarios">Usuários</a> <a href="/configuracoes">Configurações</a>{% endif %}
-      <a href="/trocar-senha">Minha senha</a>
+    <nav class="menu" aria-label="Menu principal">
+      {% if not usuario.trocar_senha %}
+        {{ item_menu('/', 'Início') }}
+        {{ item_menu('/fiado', 'Fiado') }}
+        {% if usuario.eh_admin %}
+          {{ item_menu('/relatorios', 'Relatórios') }}
+          {{ item_menu('/usuarios', 'Usuários') }}
+          {{ item_menu('/configuracoes', 'Configurações') }}
+        {% endif %}
+      {% endif %}
+    </nav>
+    <div class="conta">
+      <a href="/trocar-senha" class="quem" title="Minha senha">
+        <span class="avatar" aria-hidden="true">{{ usuario.nome[:1] | upper }}</span>
+        <span class="quem-texto"><strong>{{ usuario.nome }}</strong><small>{{ "Administrador" if usuario.eh_admin else "Operador" }}</small></span>
+      </a>
       <form method="post" action="/sair" class="em-linha">
         <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
-        <button type="submit" class="botao-link">Trocar operador / Sair</button>
+        <button type="submit" class="botao-sair" title="Trocar operador / Sair">Sair</button>
       </form>
-    </nav>
+    </div>
     {% endif %}
   </header>
 

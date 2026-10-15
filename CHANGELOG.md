@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.4.0] - 2026-10-15
+
+### Alterado
+- Novo visual escuro e moderno: barra superior fixa com menu destacado e selo do usuário,
+  cartões arredondados, botões do balcão em blocos com ícones, tabelas mais limpas, números
+  com dígitos alinhados e controles do navegador (calendário, listas) no tema escuro.
+- Layout do celular revisado (2 colunas que nunca passam da largura da tela).
+- Impressão continua clara (fundo branco), para economizar tinta.
+- Botões desativados ficam visivelmente em cinza.
+
 ## [1.3.0] - 2026-10-15
 
 ### Adicionado
