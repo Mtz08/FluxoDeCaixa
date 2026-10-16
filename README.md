@@ -256,6 +256,7 @@ As migrações do banco rodam sozinhas ao iniciar.
 | Script | Uso |
 |---|---|
 | `recuperar_admin.bat` | Admin esqueceu a senha: gera senha provisória (troca obrigatória). Sem admin ativo, promove um usuário. Fica na auditoria. |
+| `zerar_caixa.bat` | Depois de um **teste**: apaga todos os caixas e o fiado lançado neles (clientes, usuários e configurações ficam). Pede o endereço do banco (Neon) ou usa o da loja, grava backup antes e só apaga ao digitar ZERAR. Fica na auditoria. |
 | `restaurar_backup.bat ARQ.cxbk` | Restaura com o sistema **fechado** (banco corrompido). `--saida x.db` só extrai. |
 | `backup_manual.bat` | Backup imediato sem abrir o navegador. |
 | `scripts\migrar.py` | Cria/atualiza a estrutura do banco. |

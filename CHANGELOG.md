@@ -4,6 +4,16 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.5.1] - 2026-10-16
+
+### Adicionado
+- `scripts/zerar_caixa.bat`: zera o caixa depois de um teste (mostra o que sai, grava backup
+  criptografado antes, pede para digitar ZERAR; tudo numa transação). Clientes, usuários e
+  configurações ficam.
+
+### Alterado
+- Nome no topo: "Fluxo de Caixa - Bem Me Quer" (no celular, "Fluxo de Caixa").
+
 ## [1.5.0] - 2026-10-16
 
 ### Adicionado

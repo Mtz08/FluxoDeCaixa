@@ -17,11 +17,11 @@
     <a href="{{ url }}" {% if atual == url or (url != '/' and atual.startswith(url)) %}aria-current="page"{% endif %}>{{ rotulo }}</a>
   {%- endmacro %}
   <header class="topo">
-    <a href="/" class="marca" aria-label="Caixa da Papelaria — início">
+    <a href="/" class="marca" aria-label="Fluxo de Caixa - Bem Me Quer — início">
       <span class="marca-icone" aria-hidden="true">
         <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="13" rx="2.5"/><path d="M3 10h18"/><path d="M7 15h3"/><path d="M8 6V4h8v2"/></svg>
       </span>
-      <span class="marca-texto">Caixa<span> da Papelaria</span></span>
+      <span class="marca-texto">Fluxo de Caixa<span> - Bem Me Quer</span></span>
     </a>
     {% if usuario %}
     <nav class="menu" aria-label="Menu principal">
