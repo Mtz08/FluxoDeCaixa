@@ -227,3 +227,47 @@ def test_editar_cliente(cliente: TestClient, admin: Usuario) -> None:
     )
     assert resposta.status_code == 303
     assert "Limite R$ 100,00" in cliente.get(f"/fiado/clientes/{cid}").text
+
+
+def test_compra_parcelada_pela_tela(cliente: TestClient, operador: Usuario) -> None:
+    from datetime import timedelta
+
+    from app.core.datas import hoje_local
+
+    entrar(cliente, "joao", SENHA_OPERADOR)
+    _abrir_caixa(cliente)
+    cid = _cadastrar(cliente)
+    form = cliente.get(f"/fiado/clientes/{cid}/compra").text
+    assert 'name="parcelas"' in form and "ao dia" in form  # taxa informada antes de gravar
+    venc = hoje_local() + timedelta(days=30)
+    dados = {"total": "100,00", "descricao": "mochila", "chave": _chave(form)}
+    dados |= {"parcelas": "3", "vencimento": venc.isoformat()}
+
+    revisao = postar(cliente, f"/fiado/clientes/{cid}/compra", dados)
+    assert "R$ 33,34" in revisao.text and revisao.text.count("R$ 33,33") >= 2
+    assert venc.strftime("%d/%m/%Y") in revisao.text
+
+    sem_venc = postar(cliente, f"/fiado/clientes/{cid}/compra", dados | {"vencimento": ""})
+    assert sem_venc.status_code == 400 and "vencimento" in sem_venc.text
+
+    gravado = postar(cliente, f"/fiado/clientes/{cid}/compra", dados | {"etapa": "gravar"})
+    assert gravado.status_code == 303
+    ficha = cliente.get(f"/fiado/clientes/{cid}").text
+    assert "Parcelas" in ficha and ficha.count("a vencer") == 3
+    assert "R$ 100,00" in ficha
+
+
+def test_configurar_juros_so_admin(cliente: TestClient, admin: Usuario, operador: Usuario) -> None:
+    entrar(cliente, "joao", SENHA_OPERADOR)
+    negado = postar(cliente, "/configuracoes/juros", {"taxa": "0,05", "carencia": "10"})
+    assert negado.status_code in (303, 403)
+    postar(cliente, "/logout")
+    entrar(cliente, "maria", SENHA_ADMIN)
+    assert 'value="0,033"' in cliente.get("/configuracoes").text
+    ruim = postar(cliente, "/configuracoes/juros", {"taxa": "5", "carencia": "10"})
+    assert ruim.status_code == 303
+    assert "entre 0 e 1" in cliente.get("/configuracoes").text
+    ok = postar(cliente, "/configuracoes/juros", {"taxa": "0,05", "carencia": "15"})
+    assert ok.status_code == 303
+    pagina = cliente.get("/configuracoes").text
+    assert "Juros salvos" in pagina and 'value="0,05"' in pagina and 'value="15"' in pagina

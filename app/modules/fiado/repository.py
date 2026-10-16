@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.modules.fiado.models import Cliente, FiadoLancamento
+from app.modules.fiado.models import Cliente, FiadoLancamento, FiadoParcela
 
 LIMITE_BUSCA = 50
 
@@ -68,3 +68,14 @@ def saldo_calculado(db: Session, cliente_id: int) -> int:
         func.coalesce(func.sum(FiadoLancamento.sinal * FiadoLancamento.valor_centavos), 0)
     ).where(FiadoLancamento.cliente_id == cliente_id)
     return int(db.scalar(consulta) or 0)
+
+
+def parcelas_de_clientes(db: Session, cliente_ids: list[int]) -> list[FiadoParcela]:
+    if not cliente_ids:
+        return []
+    consulta = (
+        select(FiadoParcela)
+        .where(FiadoParcela.cliente_id.in_(cliente_ids))
+        .order_by(FiadoParcela.compra_id, FiadoParcela.numero)
+    )
+    return list(db.scalars(consulta))

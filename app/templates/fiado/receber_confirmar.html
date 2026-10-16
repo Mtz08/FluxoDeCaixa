@@ -7,7 +7,8 @@
   <h1>Confira antes de gravar</h1>
   <dl class="resumo-confirmacao">
     <dt>Cliente</dt><dd>{{ c.nome }}</dd>
-    <dt>Dívida atual</dt><dd>{{ saldo(c.saldo_centavos) }}</dd>
+    <dt>Dívida atual</dt><dd>{{ saldo(previa.divida_centavos) }}</dd>
+    {% if previa.juros_centavos %}<dt>Inclui juros por atraso</dt><dd class="valor-saida">{{ previa.juros_centavos | reais }} <span class="dica">(pagos primeiro)</span></dd>{% endif %}
     <dt>Valor entregue</dt><dd>{{ previa.total_informado_centavos | reais }}</dd>
     {% if previa.troco_centavos %}<dt>Troco a devolver</dt><dd class="numero-grande">{{ previa.troco_centavos | reais }}</dd>{% endif %}
     {% for p in previa.partes %}<dt>Entra no caixa ({{ p.forma }})</dt><dd class="valor-entrada">{{ p.valor_centavos | reais }}</dd>{% endfor %}

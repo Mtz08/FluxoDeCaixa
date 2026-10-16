@@ -83,7 +83,14 @@ O funcionário precisa da senha da dona para estornar.
 - **Dívidas do caderno de papel** (dona): na ficha do cliente, **Lançar saldo do caderno**, com a
   data da compra mais antiga.
 - **Painel do fiado** (menu Fiado, dona): total a receber e quem está devendo há 30, 60 ou 90+ dias.
-- Não há juros nem multa.
+- **Parcelar (ex.: mochila em 3x):** em "Anotar compra", abra **"Parcelar?"**, escolha as
+  parcelas e o vencimento da 1ª. As demais vencem no mesmo dia dos meses seguintes. Avise o
+  cliente da taxa que aparece na tela.
+- **Juros por atraso (só parcelas):** 10 dias de carência após o vencimento; a partir do 11º dia,
+  juros fixos por dia sobre o que falta pagar da parcela, até a baixa. Ao receber, os juros são
+  pagos primeiro. Taxa padrão provisória **0,033% ao dia**; a dona muda em Configurações › Juros
+  (vale para compras novas). Para perdoar, estorne o lançamento de juros.
+- Fiado comum (sem parcelar) não tem juros. Não há multa.
 
 ## Relatórios (dona)
 

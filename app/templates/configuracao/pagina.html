@@ -4,7 +4,7 @@
 <h1>⚙ Configurações</h1>
 <nav class="abas indice" aria-label="Seções">
   <a href="#backup">Backup</a> <a href="#celular">Celular</a> <a href="#gerais">Loja</a>
-  <a href="#formas">Formas de pagamento</a> <a href="#categorias">Categorias</a> <a href="#verificar">Verificar dados</a>
+  <a href="#juros">Juros do fiado</a> <a href="#formas">Formas de pagamento</a> <a href="#categorias">Categorias</a> <a href="#verificar">Verificar dados</a>
 </nav>
 
 {# ------------------------------------------------------------ backup #}
@@ -139,6 +139,25 @@
     <button type="submit" class="botao botao-principal">Salvar</button>
   </form>
   <p class="dica">Pasta de dados deste computador: <code>{{ pasta_dados }}</code></p>
+</section>
+
+{# ------------------------------------------------------------ juros #}
+<section class="cartao" id="juros">
+  <h2>📅 Juros do fiado parcelado</h2>
+  <p class="dica">Valem só para as compras parceladas <strong>novas</strong>: cada compra guarda a taxa e a carência do dia em que foi feita.
+     Juros simples, por dia, só sobre o valor da parcela em atraso, contando a partir do dia seguinte ao fim da carência.</p>
+  <p class="aviso aviso-alerta" role="note">⚠ Taxa padrão provisória. Confirme a taxa definitiva com a contabilidade/advogado antes de cobrar
+     (Código de Defesa do Consumidor art. 52; Código Civil art. 406; Decreto 22.626/1933) e informe o cliente na hora da compra.</p>
+  <form method="post" action="/configuracoes/juros" class="formulario estreito-esquerda">
+    <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
+    <label>Juros por dia de atraso (%)
+      <input name="taxa" value="{{ prefs.juros_taxa_ppm | taxa_juros }}" inputmode="decimal" required>
+    </label>
+    <label>Carência (dias após o vencimento sem juros)
+      <input name="carencia" value="{{ prefs.juros_carencia_dias }}" inputmode="numeric" required>
+    </label>
+    <button type="submit" class="botao">Salvar juros</button>
+  </form>
 </section>
 
 {# ------------------------------------------------------------ formas #}

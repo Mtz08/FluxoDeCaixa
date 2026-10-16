@@ -39,7 +39,11 @@ Decisões tomadas com a responsável em 14/10/2026. Qualquer mudança aqui preci
 | 6 | Venda com parte paga e parte fiado é feita numa tela só ("Anotar fiado" com "pagou agora"). |
 | 7 | Atraso (30/60/90+) conta desde a compra mais antiga ainda não quitada; pagamentos abatem as compras mais antigas primeiro. |
 | 11 | Operador vê o saldo do cliente e quanto ainda pode comprar; não altera limite. |
-| — | Sem juros e sem multa na Fase 1. |
+| — | Sem multa. Fiado comum (sem parcelar) continua **sem juros**. |
+| 14 | Compra parcelada (1 a 24x): parcelas mensais no mesmo dia do mês da 1ª (ou no último dia, se o mês for mais curto); centavos que sobram vão para as primeiras. |
+| 15 | Juros por atraso **só em parcela**: carência de 10 dias após o vencimento; juros **a partir do 11º dia**, contando só os dias após a carência (vence dia 10 → dia 21 = 1 dia de juros). |
+| 16 | Juros simples (fixos por dia) **só sobre o que falta pagar da parcela** — nunca juros sobre juros. Taxa padrão provisória: **0,033% ao dia** (≈ 0,99% ao mês), ajustável pela dona em Configurações. |
+| 17 | Pagamento e abatimento quitam **primeiro os juros**, depois a parcela que venceu primeiro. |
 
 ### Decisões de implementação da Etapa 3
 
@@ -56,6 +60,19 @@ Decisões tomadas com a responsável em 14/10/2026. Qualquer mudança aqui preci
   a descrição no caixa não leva o nome do cliente (a anonimização não alcançaria o caixa, que é imutável).
 - Abatimento só até o valor da dívida. Saldo inicial do caderno não exige caixa aberto.
 - Painel com totais do fiado é só do administrador; o operador busca clientes e vê a ficha.
+
+### Decisões de implementação das parcelas (1.5.0)
+
+- Taxa e carência ficam **gravadas em cada parcela** no dia da compra (o combinado com o cliente);
+  mudar a configuração vale só para compras novas. As parcelas não podem ser alteradas nem apagadas.
+- Os juros são calculados na hora (ficha, recebimento, painel) e **lançados no extrato** como
+  "Juros por atraso" no momento do pagamento ou abatimento, antes do próprio pagamento.
+- Perdoar juros = estornar o lançamento de juros: o período perdoado não volta a ser cobrado.
+- Estornar a compra parcelada cancela as parcelas (e os juros futuros).
+- Arredondamento: meio-centavo para cima, por parcela, em inteiros (sem ponto flutuante).
+- Base legal a ser confirmada pelo responsável antes de definir a taxa final: CDC (Lei 8.078/1990)
+  art. 52 (informar a taxa ao cliente antes da compra), Código Civil art. 406 e Decreto 22.626/1933
+  (Lei de Usura). O sistema mostra a taxa na tela da compra e na ficha; a taxa padrão é provisória.
 
 ## Relatórios (Etapa 4)
 

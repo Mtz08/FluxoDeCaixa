@@ -127,6 +127,7 @@
     <tr><th>Vendas fiado no período (compras anotadas)</th><td class="num">{{ rel.fiado.compras_centavos | reais }}</td></tr>
     <tr><th>Recebido no período</th><td class="num">{{ rel.fiado.recebido_centavos | reais }}</td></tr>
     <tr><th>Abatimentos / perdões</th><td class="num">{{ rel.fiado.abatimentos_centavos | reais }}</td></tr>
+    <tr><th>Juros por atraso lançados</th><td class="num">{{ rel.fiado.juros_centavos | reais }}</td></tr>
     {% if rel.fiado.saldo_inicial_centavos %}<tr><th>Saldos trazidos do caderno</th><td class="num">{{ rel.fiado.saldo_inicial_centavos | reais }}</td></tr>{% endif %}
   </table>
   <h3>Clientes em atraso (30 dias ou mais)</h3>

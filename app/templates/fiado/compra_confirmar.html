@@ -16,6 +16,21 @@
     <dt>Saldo depois</dt><dd>{{ saldo(previa.saldo_depois_centavos) }}</dd>
   </dl>
 
+  {% if previa.parcelas %}
+  <h2>Parcelas ({{ previa.parcelas | length }}x)</h2>
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th></tr></thead>
+    <tbody>
+    {% for p in previa.parcelas %}
+      <tr><td>{{ p.numero }}/{{ previa.parcelas | length }}</td><td>{{ p.vencimento | data }}</td><td class="num">{{ p.valor_centavos | reais }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="aviso aviso-alerta" role="note">⚠ Informe o cliente: parcela não paga até {{ previa.condicoes.carencia_dias }} dias após o vencimento
+    passa a ter juros de <strong>{{ previa.condicoes.taxa_texto }}% ao dia</strong> (cerca de {{ previa.condicoes.taxa_mes_texto }}% ao mês),
+    só sobre o valor em atraso, até o pagamento.</p>
+  {% endif %}
+
   <form method="post" action="/fiado/clientes/{{ c.id }}/compra" class="formulario">
     <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">
     {{ campos_ocultos(valores, ('confirmar_valor_alto', 'confirmar_limite')) }}

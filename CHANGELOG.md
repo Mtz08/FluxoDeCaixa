@@ -4,6 +4,21 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); 
 
 ## [Não lançado]
 
+## [1.5.0] - 2026-10-16
+
+### Adicionado
+- **Fiado parcelado** (1 a 24x) com vencimento da 1ª parcela e as demais no mesmo dia dos meses
+  seguintes; tabela de parcelas na confirmação e na ficha do cliente (situação e juros até hoje).
+- **Juros por atraso nas parcelas**: carência de 10 dias; a partir do 11º dia, juros simples por
+  dia sobre o que falta pagar da parcela. Pagamento quita primeiro os juros, depois a parcela
+  mais antiga. Taxa padrão provisória de 0,033% ao dia, ajustável em Configurações › Juros.
+- Lançamento "Juros por atraso" no extrato, na mensagem do WhatsApp e no relatório do período.
+- Migração `0005`: tabela `fiado_parcela` (imutável) e tipo de lançamento `juros`.
+
+### Alterado
+- "Para quitar hoje", recebimento, painel e telas de compra mostram a dívida com os juros.
+- Fiado comum continua sem juros.
+
 ## [1.4.1] - 2026-10-15
 
 ### Alterado

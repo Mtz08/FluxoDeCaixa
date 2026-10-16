@@ -113,14 +113,22 @@ def formatar_cpf(digitos: str | None) -> str:
 # ---------------------------------------------------------------- WhatsApp
 
 
-def mensagem_extrato(tratamento: str, loja: str, saldo_centavos: int, desde: date | None) -> str:
-    """Mensagem educada com o saldo. Sem cobrança agressiva, sem juros (Fase 1)."""
+def mensagem_extrato(
+    tratamento: str, loja: str, saldo_centavos: int, desde: date | None, juros_centavos: int = 0
+) -> str:
+    """Mensagem educada com o saldo (já com os juros por atraso, se houver)."""
     inicio = f"Olá, {tratamento}! Tudo bem? Aqui é da {loja}."
     if saldo_centavos > 0:
         quando = f", referente a compras desde {formatar_data(desde)}" if desde else ""
+        juros = (
+            f" (inclui {formatar_reais(juros_centavos)} de juros por atraso de parcela)"
+            if juros_centavos > 0
+            else ""
+        )
         corpo = (
             f" Passando para lembrar que o seu saldo em aberto conosco é de "
-            f"{formatar_reais(saldo_centavos)}{quando}. Quando puder, é só passar aqui na loja."
+            f"{formatar_reais(saldo_centavos)}{juros}{quando}. "
+            "Quando puder, é só passar aqui na loja."
         )
     elif saldo_centavos < 0:
         corpo = f" Você tem um crédito de {formatar_reais(-saldo_centavos)} conosco."

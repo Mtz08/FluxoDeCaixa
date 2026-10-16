@@ -21,6 +21,7 @@ class TipoFiado(StrEnum):
     ABATIMENTO = "abatimento"  # perdão/desconto/devolução de mercadoria (só admin)
     SALDO_INICIAL = "saldo_inicial"  # dívida trazida do caderno de papel (só admin)
     DEVOLUCAO_CREDITO = "devolucao_credito"  # cliente com crédito recebe o dinheiro de volta
+    JUROS = "juros"  # juros por atraso de parcela, lançados no dia do pagamento/abatimento
     ESTORNO = "estorno"
 
 
@@ -29,6 +30,7 @@ SINAL_FIADO: dict[TipoFiado, int] = {
     TipoFiado.COMPRA: 1,
     TipoFiado.SALDO_INICIAL: 1,
     TipoFiado.DEVOLUCAO_CREDITO: 1,
+    TipoFiado.JUROS: 1,
     TipoFiado.PAGAMENTO: -1,
     TipoFiado.ABATIMENTO: -1,
 }
@@ -39,6 +41,7 @@ ROTULO_FIADO: dict[str, str] = {
     TipoFiado.ABATIMENTO: "Abatimento",
     TipoFiado.SALDO_INICIAL: "Saldo inicial (caderno)",
     TipoFiado.DEVOLUCAO_CREDITO: "Devolução de crédito",
+    TipoFiado.JUROS: "Juros por atraso",
     TipoFiado.ESTORNO: "Estorno",
 }
 
@@ -159,3 +162,26 @@ class FiadoLancamento(Base):
     @property
     def valor_com_sinal(self) -> int:
         return self.sinal * self.valor_centavos
+
+
+class FiadoParcela(Base):
+    """Parcela de uma compra fiado parcelada. Imutável: guarda o "contrato" da compra
+    (vencimento, valor, taxa de juros e carência). O que já foi pago é calculado a partir
+    dos lançamentos (app/modules/fiado/parcelas.py)."""
+
+    __tablename__ = "fiado_parcela"
+    __table_args__ = (
+        Index("ix_fiado_parcela_cliente", "cliente_id"),
+        Index("ix_fiado_parcela_vencimento", "vencimento"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    compra_id: Mapped[int] = mapped_column(ForeignKey("fiado_lancamento.id"))
+    cliente_id: Mapped[int] = mapped_column(ForeignKey("cliente.id"))
+    numero: Mapped[int]
+    total: Mapped[int]
+    vencimento: Mapped[date] = mapped_column(Date)
+    valor_centavos: Mapped[int]
+    taxa_juros_ppm: Mapped[int]  # por dia, em partes por milhão (0,033% = 330)
+    carencia_dias: Mapped[int]
+    criado_em: Mapped[datetime] = mapped_column(DataHoraUTC())

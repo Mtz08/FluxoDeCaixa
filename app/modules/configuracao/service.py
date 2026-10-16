@@ -22,8 +22,14 @@ from app.core.erros import ErroNegocio, SemPermissao
 from app.modules.auth.models import Usuario
 from app.modules.caixa.models import CATEGORIA_DEVOLUCAO_FIADO, CategoriaDespesa, FormaPagamento
 from app.modules.configuracao import repository as repo
+from app.modules.fiado.parcelas import percentual_para_ppm
 
 MAX_PASTAS_BACKUP = 3
+# Juros por atraso de parcela (fiado parcelado). PADRÃO PROVISÓRIO: 0,033% ao dia
+# (~1% ao mês, juros simples) — a taxa definitiva deve ser validada com a contabilidade
+# (CDC art. 52; Código Civil art. 406; Decreto 22.626/1933).
+JUROS_TAXA_PADRAO_PPM = 330
+JUROS_CARENCIA_PADRAO = 10
 _HORA = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 
@@ -34,6 +40,8 @@ class Preferencias:
     cliente_campos_extras: bool
     backup_pastas: tuple[str, ...]
     backup_hora: str  # "HH:MM", horário da loja
+    juros_taxa_ppm: int = JUROS_TAXA_PADRAO_PPM  # por dia (330 = 0,033% ao dia)
+    juros_carencia_dias: int = JUROS_CARENCIA_PADRAO
 
     @property
     def hora_backup(self) -> time:
@@ -50,6 +58,8 @@ def carregar(db: Session, base: Config) -> Preferencias:
         cliente_campos_extras=valores.get("cliente_campos_extras") == "1",
         backup_pastas=_pastas_backup(valores, base),
         backup_hora=valores.get("backup_hora", "21:00"),
+        juros_taxa_ppm=int(valores.get("juros_taxa_ppm", JUROS_TAXA_PADRAO_PPM)),
+        juros_carencia_dias=int(valores.get("juros_carencia_dias", JUROS_CARENCIA_PADRAO)),
     )
 
 
@@ -114,6 +124,26 @@ def salvar_gerais(
             "cliente_campos_extras": "1" if campos_extras else "0",
         },
         ip,
+    )
+
+
+# ---------------------------------------------------------------- juros do fiado
+
+
+def salvar_juros(
+    db: Session, usuario: Usuario, taxa_texto: str, carencia_texto: str, ip: str | None
+) -> None:
+    """Vale para as compras parceladas NOVAS (as antigas guardam a taxa do dia da compra)."""
+    _exigir_admin(usuario)
+    try:
+        ppm = percentual_para_ppm(taxa_texto)
+    except ValueError as erro:
+        raise ErroNegocio(str(erro)) from erro
+    carencia = carencia_texto.strip()
+    if not carencia.isdigit() or not 0 <= int(carencia) <= 60:
+        raise ErroNegocio("A carência deve ser de 0 a 60 dias.")
+    _gravar(
+        db, usuario, {"juros_taxa_ppm": str(ppm), "juros_carencia_dias": str(int(carencia))}, ip
     )
 
 

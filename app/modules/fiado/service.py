@@ -7,6 +7,7 @@ movimento do caixa na MESMA transação (tudo ou nada).
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -16,7 +17,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core import auditoria
-from app.core.datas import agora_utc, hoje_local
+from app.core.datas import agora_utc, formatar_data, hoje_local
 from app.core.dinheiro import LIMITE_CONFIRMACAO_CENTAVOS, formatar_reais
 from app.core.erros import ErroNegocio, SemPermissao
 from app.modules.auth.models import Usuario
@@ -25,6 +26,7 @@ from app.modules.caixa import service as caixa
 from app.modules.caixa.models import Origem, SessaoCaixa, TipoMovimento
 from app.modules.caixa.schemas import Parte
 from app.modules.caixa.service import PreviaParte
+from app.modules.configuracao.service import JUROS_CARENCIA_PADRAO, JUROS_TAXA_PADRAO_PPM
 from app.modules.fiado import repository as repo
 from app.modules.fiado.calculo import (
     ItemFiado,
@@ -34,7 +36,23 @@ from app.modules.fiado.calculo import (
     mensagem_extrato,
     normalizar_busca,
 )
-from app.modules.fiado.models import SINAL_FIADO, Cliente, FiadoLancamento, TipoFiado
+from app.modules.fiado.models import (
+    SINAL_FIADO,
+    Cliente,
+    FiadoLancamento,
+    FiadoParcela,
+    TipoFiado,
+)
+from app.modules.fiado.parcelas import (
+    EstadoFiado,
+    Evento,
+    NovaParcela,
+    Parcela,
+    calcular_estado,
+    gerar_parcelas,
+    ppm_ao_mes_aproximado,
+    ppm_para_percentual,
+)
 from app.modules.fiado.schemas import DadosCliente, Excedente, NovaCompra, NovoPagamento
 
 # ---------------------------------------------------------------- cadastro
@@ -204,12 +222,19 @@ def _gravar(
     lancamento: FiadoLancamento,
     usuario: Usuario,
     ip: str | None,
+    depois_de_inserir: Callable[[FiadoLancamento], None] | None = None,
 ) -> tuple[FiadoLancamento, bool]:
-    """Grava o lançamento, atualiza o saldo em cache, audita e confirma (commit)."""
+    """Grava o lançamento, atualiza o saldo em cache, audita e confirma (commit).
+
+    `depois_de_inserir`: grava registros ligados (ex.: parcelas) na MESMA transação.
+    """
     try:
         db.add(lancamento)
         cliente.saldo_centavos += lancamento.valor_com_sinal
         db.flush()
+        if depois_de_inserir is not None:
+            depois_de_inserir(lancamento)
+            db.flush()
     except IntegrityError:
         db.rollback()
         existente = repo.lancamento_por_chave(db, lancamento.chave_idempotencia)
@@ -238,6 +263,112 @@ def _gravar(
     return lancamento, False
 
 
+# ---------------------------------------------------------------- parcelas e juros
+
+
+@dataclass(frozen=True)
+class CondicoesJuros:
+    """Condições gravadas nas parcelas de uma compra nova (vêm das Configurações)."""
+
+    taxa_ppm: int = JUROS_TAXA_PADRAO_PPM
+    carencia_dias: int = JUROS_CARENCIA_PADRAO
+
+    @property
+    def taxa_texto(self) -> str:
+        return ppm_para_percentual(self.taxa_ppm)
+
+    @property
+    def taxa_mes_texto(self) -> str:
+        return ppm_ao_mes_aproximado(self.taxa_ppm)
+
+
+def montar_eventos(lancamentos: list[FiadoLancamento]) -> list[Evento]:
+    """Lançamentos -> eventos do cálculo. Estorno e estornado se anulam; juros estornado
+    (perdoado) continua como marco de data para não ser cobrado de novo."""
+    estornados = {lanc.estorno_de_id for lanc in lancamentos if lanc.estorno_de_id}
+    eventos = []
+    for lanc in lancamentos:
+        if lanc.tipo == TipoFiado.ESTORNO:
+            continue
+        perdoado = lanc.id in estornados
+        if perdoado and lanc.tipo != TipoFiado.JUROS:
+            continue
+        eventos.append(
+            Evento(lanc.id, lanc.data_referencia, lanc.tipo, lanc.valor_centavos, perdoado)
+        )
+    return eventos
+
+
+def _parcelas_para_calculo(registros: list[FiadoParcela]) -> dict[int, list[Parcela]]:
+    por_compra: dict[int, list[Parcela]] = defaultdict(list)
+    for r in registros:
+        por_compra[r.compra_id].append(
+            Parcela(
+                id=r.id,
+                compra_id=r.compra_id,
+                numero=r.numero,
+                total=r.total,
+                vencimento=r.vencimento,
+                valor_centavos=r.valor_centavos,
+                taxa_ppm=r.taxa_juros_ppm,
+                carencia=r.carencia_dias,
+            )
+        )
+    return dict(por_compra)
+
+
+def estado_do_cliente(db: Session, cliente_id: int) -> EstadoFiado:
+    lancamentos = repo.lancamentos_do_cliente(db, cliente_id)
+    parcelas = _parcelas_para_calculo(repo.parcelas_de_clientes(db, [cliente_id]))
+    return calcular_estado(montar_eventos(lancamentos), parcelas)
+
+
+def juros_a_lancar(db: Session, cliente: Cliente, dia: date | None = None) -> int:
+    """Juros por atraso acumulados até `dia` (hoje) e ainda não lançados."""
+    return estado_do_cliente(db, cliente.id).juros_a_lancar(dia or hoje_local())
+
+
+def total_devido(db: Session, cliente: Cliente, dia: date | None = None) -> int:
+    """Saldo lançado + juros por atraso até hoje (o valor para quitar)."""
+    return cliente.saldo_centavos + juros_a_lancar(db, cliente, dia)
+
+
+def _lancar_juros(
+    db: Session, cliente: Cliente, usuario: Usuario, chave: str, ip: str | None
+) -> int:
+    """Transforma os juros acumulados até hoje em lançamento (antes do pagamento/abatimento).
+
+    Não faz commit: faz parte da mesma transação do pagamento. Devolve o valor lançado.
+    """
+    hoje = hoje_local()
+    valor = juros_a_lancar(db, cliente, hoje)
+    if valor <= 0:
+        return 0
+    juros = _novo_lancamento(
+        cliente,
+        usuario,
+        TipoFiado.JUROS,
+        valor,
+        f"{chave}:juros",
+        descricao=f"Juros por atraso de parcela até {formatar_data(hoje)}",
+        data_referencia=hoje,
+        sessao=caixa_repo.sessao_aberta(db),
+    )
+    db.add(juros)
+    cliente.saldo_centavos += valor
+    db.flush()
+    auditoria.registrar(
+        db,
+        acao="fiado_juros",
+        entidade="fiado_lancamento",
+        entidade_id=juros.id,
+        usuario_id=usuario.id,
+        depois={"cliente_id": cliente.id, "valor_centavos": valor, "ate": hoje.isoformat()},
+        ip=ip,
+    )
+    return valor
+
+
 # ---------------------------------------------------------------- compra
 
 
@@ -254,9 +385,26 @@ class PreviaCompra:
     valor_alto: bool
     data_referencia: date
     descricao: str | None
+    parcelas: list[NovaParcela] = field(default_factory=list)
+    condicoes: CondicoesJuros = field(default_factory=CondicoesJuros)
 
 
-def revisar_compra(db: Session, dados: NovaCompra) -> PreviaCompra:
+def _gerar_parcelas(dados: NovaCompra) -> list[NovaParcela]:
+    if dados.parcelas == 0:
+        return []
+    if dados.primeiro_vencimento is None:
+        raise ErroNegocio("Informe a data de vencimento da 1ª parcela.")
+    if dados.primeiro_vencimento < dados.data_referencia:
+        raise ErroNegocio("O vencimento da 1ª parcela não pode ser antes da data da compra.")
+    try:
+        return gerar_parcelas(dados.valor_fiado_centavos, dados.parcelas, dados.primeiro_vencimento)
+    except ValueError as erro:
+        raise ErroNegocio(str(erro)) from erro
+
+
+def revisar_compra(
+    db: Session, dados: NovaCompra, condicoes: CondicoesJuros | None = None
+) -> PreviaCompra:
     caixa.exigir_sessao_para_lancar(db)
     cliente = _cliente_ativo(db, dados.cliente_id)
     if dados.data_referencia > hoje_local():
@@ -266,19 +414,23 @@ def revisar_compra(db: Session, dados: NovaCompra) -> PreviaCompra:
     if dados.pago_agora_centavos == dados.valor_total_centavos:
         raise ErroNegocio("Foi tudo pago na hora: lance como Entrada no caixa, não como fiado.")
     partes = _validar_formas(db, dados.partes_pagas)
-    depois = cliente.saldo_centavos + dados.valor_fiado_centavos
+    parcelas = _gerar_parcelas(dados)
+    antes = total_devido(db, cliente)
+    depois = antes + dados.valor_fiado_centavos
     return PreviaCompra(
         cliente=cliente,
         total_centavos=dados.valor_total_centavos,
         partes_pagas=partes,
         pago_agora_centavos=dados.pago_agora_centavos,
         valor_fiado_centavos=dados.valor_fiado_centavos,
-        saldo_antes_centavos=cliente.saldo_centavos,
+        saldo_antes_centavos=antes,
         saldo_depois_centavos=depois,
         excede_limite=cliente.limite_centavos is not None and depois > cliente.limite_centavos,
         valor_alto=dados.valor_total_centavos > LIMITE_CONFIRMACAO_CENTAVOS,
         data_referencia=dados.data_referencia,
         descricao=dados.descricao,
+        parcelas=parcelas,
+        condicoes=condicoes or CondicoesJuros(),
     )
 
 
@@ -289,14 +441,16 @@ def anotar_compra(
     autorizador: Usuario | None,
     confirmar_limite: bool,
     ip: str | None,
+    condicoes: CondicoesJuros | None = None,
 ) -> tuple[FiadoLancamento, bool]:
     """Anota a compra fiado (não entra no caixa). Com "pagou agora", a parte paga
-    entra no caixa como Entrada, na mesma transação."""
+    entra no caixa como Entrada, na mesma transação. Parcelada: grava as parcelas
+    (com a taxa e a carência deste dia) também na mesma transação."""
     repetido = repo.lancamento_por_chave(db, str(dados.chave))
     if repetido is not None:
         return repetido, True
 
-    previa = revisar_compra(db, dados)
+    previa = revisar_compra(db, dados, condicoes)
     _exigir_valor_confirmado(previa.total_centavos, dados.confirmar_valor_alto)
     autorizado_por = _autorizacao_limite(previa, usuario, autorizador, confirmar_limite)
     sessao = caixa.exigir_sessao_para_lancar(db)
@@ -329,7 +483,26 @@ def anotar_compra(
         movimento_caixa_id=movimento_id,
         autorizado_por=autorizado_por,
     )
-    return _gravar(db, cliente, lancamento, usuario, ip)
+
+    def gravar_parcelas(compra: FiadoLancamento) -> None:
+        agora = agora_utc()
+        for parcela in previa.parcelas:
+            db.add(
+                FiadoParcela(
+                    compra_id=compra.id,
+                    cliente_id=cliente.id,
+                    numero=parcela.numero,
+                    total=len(previa.parcelas),
+                    vencimento=parcela.vencimento,
+                    valor_centavos=parcela.valor_centavos,
+                    taxa_juros_ppm=previa.condicoes.taxa_ppm,
+                    carencia_dias=previa.condicoes.carencia_dias,
+                    criado_em=agora,
+                )
+            )
+
+    gancho = gravar_parcelas if previa.parcelas else None
+    return _gravar(db, cliente, lancamento, usuario, ip, gancho)
 
 
 def _autorizacao_limite(
@@ -365,6 +538,7 @@ class PreviaPagamento:
     pode_dar_troco: bool
     precisa_escolher: bool
     valor_alto: bool
+    juros_centavos: int = 0  # juros por atraso incluídos na dívida (lançados ao gravar)
 
 
 def _partes_registradas(db: Session, dados: NovoPagamento, troco: int) -> list[tuple[int, int]]:
@@ -387,7 +561,8 @@ def revisar_pagamento(db: Session, dados: NovoPagamento) -> PreviaPagamento:
     _validar_formas(db, dados.partes)
 
     total = dados.total_centavos
-    divida = max(cliente.saldo_centavos, 0)
+    juros = juros_a_lancar(db, cliente)
+    divida = max(cliente.saldo_centavos + juros, 0)
     excesso = max(total - divida, 0)
     em_dinheiro = sum(
         p.valor_centavos
@@ -419,10 +594,11 @@ def revisar_pagamento(db: Session, dados: NovoPagamento) -> PreviaPagamento:
         excesso_centavos=excesso,
         troco_centavos=troco,
         valor_registrado_centavos=registrado,
-        saldo_depois_centavos=cliente.saldo_centavos - registrado,
+        saldo_depois_centavos=cliente.saldo_centavos + juros - registrado,
         pode_dar_troco=pode_troco,
         precisa_escolher=precisa_escolher,
         valor_alto=total > LIMITE_CONFIRMACAO_CENTAVOS,
+        juros_centavos=juros,
     )
 
 
@@ -442,6 +618,8 @@ def receber_pagamento(
     _exigir_valor_confirmado(previa.total_informado_centavos, dados.confirmar_valor_alto)
     sessao = caixa.exigir_sessao_para_lancar(db)
     cliente = previa.cliente
+    # Juros até hoje viram lançamento ANTES do pagamento: o pagamento abate os juros primeiro.
+    _lancar_juros(db, cliente, usuario, str(dados.chave), ip)
 
     movimento = caixa.montar_movimento(
         sessao,
@@ -498,9 +676,11 @@ def abater(
     cliente = obter_cliente(db, cliente_id)
     if valor <= 0:
         raise ErroNegocio("O valor precisa ser maior que zero.")
-    if valor > cliente.saldo_centavos:
-        divida = formatar_reais(cliente.saldo_centavos)
+    devido = total_devido(db, cliente)
+    if valor > devido:
+        divida = formatar_reais(devido)
         raise ErroNegocio(f"O abatimento não pode ser maior que a dívida ({divida}).")
+    _lancar_juros(db, cliente, usuario, str(chave), ip)
     lancamento = _novo_lancamento(
         cliente,
         usuario,
@@ -700,6 +880,10 @@ class Extrato:
     dias_em_aberto: int | None
     estornados: set[int]
     link_whatsapp: str | None
+    parcelas: list[Parcela] = field(default_factory=list)
+    juros_hoje_centavos: int = 0
+    total_para_quitar_centavos: int = 0
+    hoje: date = field(default_factory=hoje_local)
 
 
 def extrato(db: Session, cliente_id: int, nome_loja: str) -> Extrato:
@@ -711,8 +895,15 @@ def extrato(db: Session, cliente_id: int, nome_loja: str) -> Extrato:
         acumulado += lanc.valor_com_sinal
         linhas.append(LinhaExtrato(lanc, acumulado))
     mais_antiga = compra_mais_antiga_em_aberto(_itens(lancamentos))
-    dias = (hoje_local() - mais_antiga).days if mais_antiga else None
-    mensagem = mensagem_extrato(cliente.tratamento, nome_loja, cliente.saldo_centavos, mais_antiga)
+    hoje = hoje_local()
+    dias = (hoje - mais_antiga).days if mais_antiga else None
+    estado = calcular_estado(
+        montar_eventos(lancamentos),
+        _parcelas_para_calculo(repo.parcelas_de_clientes(db, [cliente.id])),
+    )
+    juros_hoje = estado.juros_a_lancar(hoje)
+    total = cliente.saldo_centavos + juros_hoje
+    mensagem = mensagem_extrato(cliente.tratamento, nome_loja, total, mais_antiga, juros_hoje)
     return Extrato(
         cliente=cliente,
         linhas=linhas,
@@ -721,6 +912,10 @@ def extrato(db: Session, cliente_id: int, nome_loja: str) -> Extrato:
         dias_em_aberto=dias,
         estornados={lanc.estorno_de_id for lanc in lancamentos if lanc.estorno_de_id},
         link_whatsapp=None if cliente.anonimizado else link_whatsapp(cliente.telefone, mensagem),
+        parcelas=sorted(estado.parcelas, key=lambda p: (p.vencimento, p.compra_id, p.numero)),
+        juros_hoje_centavos=juros_hoje,
+        total_para_quitar_centavos=total,
+        hoje=hoje,
     )
 
 
@@ -744,15 +939,23 @@ class Painel:
 
 def painel(db: Session, ordem: str = "valor") -> Painel:
     clientes = repo.clientes_com_saldo(db)
+    ids = [c.id for c in clientes]
     por_cliente: dict[int, list[FiadoLancamento]] = defaultdict(list)
-    for lanc in repo.lancamentos_de_clientes(db, [c.id for c in clientes]):
+    for lanc in repo.lancamentos_de_clientes(db, ids):
         por_cliente[lanc.cliente_id].append(lanc)
+    parcelas_por_cliente: dict[int, list[FiadoParcela]] = defaultdict(list)
+    for registro in repo.parcelas_de_clientes(db, ids):
+        parcelas_por_cliente[registro.cliente_id].append(registro)
 
     resultado = Painel()
     faixas: dict[str, int] = defaultdict(int)
     hoje = hoje_local()
     for cliente in clientes:
-        saldo = cliente.saldo_centavos
+        estado = calcular_estado(
+            montar_eventos(por_cliente[cliente.id]),
+            _parcelas_para_calculo(parcelas_por_cliente[cliente.id]),
+        )
+        saldo = cliente.saldo_centavos + estado.juros_a_lancar(hoje)
         if saldo < 0:
             resultado.total_creditos_centavos += -saldo
             continue
@@ -781,7 +984,7 @@ def anonimizar(db: Session, usuario: Usuario, cliente_id: int, ip: str | None) -
     cliente = obter_cliente(db, cliente_id)
     if cliente.anonimizado:
         raise ErroNegocio("Este cliente já foi anonimizado.")
-    if cliente.saldo_centavos != 0:
+    if cliente.saldo_centavos != 0 or juros_a_lancar(db, cliente) != 0:
         raise ErroNegocio("Só é possível anonimizar cliente com saldo zerado.")
     cliente.nome = f"Cliente anonimizado #{cliente.id}"
     cliente.apelido = None

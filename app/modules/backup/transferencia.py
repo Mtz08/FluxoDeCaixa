@@ -29,7 +29,13 @@ from app.modules.fiado import models as _fiado  # noqa: F401
 # Ordem respeita as chaves estrangeiras. sessao_caixa/movimentos têm tratamento próprio.
 ANTES_DO_CAIXA = ("usuario", "sessao_login", "configuracao")
 CADASTROS_INICIAIS = ("forma_pagamento", "categoria_despesa")  # já existem no destino
-DEPOIS_DO_CAIXA = ("cliente", "fiado_lancamento", "auditoria", "backup_registro")
+DEPOIS_DO_CAIXA = (
+    "cliente",
+    "fiado_lancamento",
+    "fiado_parcela",
+    "auditoria",
+    "backup_registro",
+)
 CAMPOS_DE_FECHAMENTO = (
     "fechada_por",
     "fechada_em",

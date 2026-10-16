@@ -16,8 +16,9 @@
       {% if c.observacao %}<p>📝 {{ c.observacao }}</p>{% endif %}
     </div>
     <div class="saldo-destaque">
-      <span>Saldo</span>
-      <strong>{{ saldo(e.saldo_centavos) }}</strong>
+      <span>{{ 'Para quitar hoje' if e.juros_hoje_centavos else 'Saldo' }}</span>
+      <strong>{{ saldo(e.total_para_quitar_centavos) }}</strong>
+      {% if e.juros_hoje_centavos %}<span class="valor-saida">inclui {{ e.juros_hoje_centavos | reais }} de juros por atraso</span>{% endif %}
       {% if e.compra_mais_antiga %}<span class="dica">Em aberto desde {{ e.compra_mais_antiga | data }} ({{ e.dias_em_aberto }} dia(s))</span>{% endif %}
     </div>
   </div>
@@ -31,6 +32,36 @@
     <a href="/fiado/clientes/{{ c.id }}/editar" class="botao">✏ Alterar cadastro</a>
     <button type="button" class="botao" data-imprimir>🖨 Imprimir extrato</button>
   </div>
+  {% endif %}
+
+  {% if e.parcelas %}
+  <h2>Parcelas</h2>
+  <div class="rolagem">
+  <table class="tabela tabela-compacta">
+    <thead><tr><th>Parcela</th><th>Vencimento</th><th class="num">Valor</th><th class="num">Pago</th><th class="num">Em aberto</th><th class="num">Juros até hoje</th><th>Situação</th></tr></thead>
+    <tbody>
+    {% for p in e.parcelas %}
+      {% set situacao = p.situacao(e.hoje) %}
+      <tr class="{{ 'riscado' if situacao == 'paga' }}">
+        <td>{{ p.numero }}/{{ p.total }}</td>
+        <td>{{ p.vencimento | data }}</td>
+        <td class="num">{{ p.valor_centavos | reais }}</td>
+        <td class="num">{{ p.pago_centavos | reais }}</td>
+        <td class="num">{{ p.aberto_centavos | reais }}</td>
+        <td class="num">{% set j = p.juros_ate(e.hoje) %}{% if j %}<span class="valor-saida">{{ j | reais }}</span>{% else %}—{% endif %}</td>
+        <td>
+          {% if situacao == 'paga' %}<span class="etiqueta etiqueta-verde">✔ paga</span>
+          {% elif situacao == 'a vencer' %}<span class="etiqueta etiqueta-cinza">a vencer</span>
+          {% elif situacao == 'vencida (sem juros)' %}<span class="etiqueta etiqueta-amarela">⚠ vencida · carência</span>
+          {% else %}<span class="etiqueta etiqueta-vermelha">✖ {{ p.dias_em_atraso(e.hoje) }} dias de atraso</span>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <p class="dica">Juros de atraso: {{ e.parcelas[0].taxa_ppm | taxa_juros }}% ao dia após {{ e.parcelas[0].carencia }} dias do vencimento, só sobre o valor em atraso
+    (a taxa de cada compra é a do dia em que ela foi feita). Ao receber, os juros entram no extrato e são pagos primeiro.</p>
   {% endif %}
 
   <h2>Extrato</h2>
@@ -58,7 +89,7 @@
     </tbody>
   </table>
   </div>
-  <p class="dica rodape-impressao">Extrato gerencial interno — sem juros nem multa.</p>
+  <p class="dica rodape-impressao">Extrato gerencial interno — sem multa. Fiado comum não tem juros; parcelas vencidas têm juros por atraso após a carência, como informado na compra.</p>
 </section>
 
 {% if usuario.eh_admin and not c.anonimizado %}

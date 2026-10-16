@@ -26,6 +26,7 @@ from app.modules.caixa.schemas import Parte
 from app.modules.configuracao import service as configuracao
 from app.modules.fiado import service
 from app.modules.fiado.calculo import formatar_cpf, formatar_telefone
+from app.modules.fiado.parcelas import MAX_PARCELAS, somar_meses
 from app.modules.fiado.schemas import DadosCliente, Excedente, NovaCompra, NovoPagamento
 
 router = APIRouter(prefix="/fiado")
@@ -255,13 +256,27 @@ def ficha(
 # ---------------------------------------------------------------- compra
 
 
-def _contexto_compra(db: Session, cliente_id: int, valores: dict[str, Any]) -> dict[str, Any]:
+def _condicoes(request: Request, db: Session) -> service.CondicoesJuros:
+    """Taxa e carência atuais (Configurações) — gravadas nas parcelas das compras novas."""
+    prefs = configuracao.carregar(db, request.app.state.config)
+    return service.CondicoesJuros(prefs.juros_taxa_ppm, prefs.juros_carencia_dias)
+
+
+def _contexto_compra(
+    request: Request, db: Session, cliente_id: int, valores: dict[str, Any]
+) -> dict[str, Any]:
+    hoje = hoje_local()
+    cliente = service.obter_cliente(db, cliente_id)
     return {
-        "cliente": service.obter_cliente(db, cliente_id),
+        "cliente": cliente,
+        "devido": service.total_devido(db, cliente),
         "formas": caixa_repo.formas_ativas(db),
         "valores": valores,
         "chave": valores.get("chave") or str(uuid4()),
-        "hoje": hoje_local().isoformat(),
+        "hoje": hoje.isoformat(),
+        "vencimento_sugerido": somar_meses(hoje, 1).isoformat(),
+        "condicoes": _condicoes(request, db),
+        "max_parcelas": MAX_PARCELAS,
     }
 
 
@@ -275,9 +290,18 @@ def _ler_compra(db: Session, cliente_id: int, form: FormData) -> NovaCompra:
             data_referencia=_data(form.get("data")),
             chave=_chave(form.get("chave")),
             confirmar_valor_alto=form.get("confirmar_valor_alto") is not None,
+            parcelas=_inteiro(form.get("parcelas")),
+            primeiro_vencimento=_data(form.get("vencimento")) if form.get("vencimento") else None,
         )
     except ValidationError as erro:
         raise ErroNegocio(primeira_mensagem(erro)) from erro
+
+
+def _inteiro(texto: object) -> int:
+    valor = str(texto or "0").strip()
+    if not valor.isdigit():
+        raise ErroNegocio("Quantidade de parcelas inválida.")
+    return int(valor)
 
 
 @router.get("/clientes/{cliente_id}/compra")
@@ -287,7 +311,7 @@ def compra_form(
     usuario: Usuario = Depends(usuario_atual),
     db: Session = Depends(obter_db),
 ) -> Response:
-    return renderizar(request, "fiado/compra.html", _contexto_compra(db, cliente_id, {}))
+    return renderizar(request, "fiado/compra.html", _contexto_compra(request, db, cliente_id, {}))
 
 
 @router.post("/clientes/{cliente_id}/compra")
@@ -303,29 +327,34 @@ async def compra(
     etapa = form.get("etapa")
     ip = ip_cliente(request)
     if etapa == "corrigir":
-        return renderizar(request, "fiado/compra.html", _contexto_compra(db, cliente_id, valores))
+        contexto = _contexto_compra(request, db, cliente_id, valores)
+        return renderizar(request, "fiado/compra.html", contexto)
     try:
         dados = _ler_compra(db, cliente_id, form)
         if etapa == "gravar":
             autorizador = _autorizador(db, cfg, usuario, form, ip)
             confirmar = form.get("confirmar_limite") is not None
-            lanc, repetido = service.anotar_compra(db, usuario, dados, autorizador, confirmar, ip)
+            lanc, repetido = service.anotar_compra(
+                db, usuario, dados, autorizador, confirmar, ip, _condicoes(request, db)
+            )
             aviso = f"Fiado anotado: {formatar_reais(lanc.valor_centavos)}."
             if repetido:
                 aviso = "Esta compra já tinha sido anotada (envio repetido ignorado)."
             return redirecionar(request, f"/fiado/clientes/{cliente_id}", aviso)
-        previa = service.revisar_compra(db, dados)
+        previa = service.revisar_compra(db, dados, _condicoes(request, db))
     except ErroNegocio as erro:
         db.rollback()
         if etapa == "gravar":
             # Erro na confirmação (ex.: senha do admin): volta à confirmação.
             try:
-                previa = service.revisar_compra(db, _ler_compra(db, cliente_id, form))
+                previa = service.revisar_compra(
+                    db, _ler_compra(db, cliente_id, form), _condicoes(request, db)
+                )
                 contexto = {"previa": previa, "valores": valores, "erro": erro.mensagem}
                 return renderizar(request, "fiado/compra_confirmar.html", contexto, status=400)
             except ErroNegocio:
                 pass
-        contexto = _contexto_compra(db, cliente_id, valores) | {"erro": erro.mensagem}
+        contexto = _contexto_compra(request, db, cliente_id, valores) | {"erro": erro.mensagem}
         return renderizar(request, "fiado/compra.html", contexto, status=400)
     return renderizar(
         request, "fiado/compra_confirmar.html", {"previa": previa, "valores": valores}
@@ -336,8 +365,10 @@ async def compra(
 
 
 def _contexto_receber(db: Session, cliente_id: int, valores: dict[str, Any]) -> dict[str, Any]:
+    cliente = service.obter_cliente(db, cliente_id)
     return {
-        "cliente": service.obter_cliente(db, cliente_id),
+        "cliente": cliente,
+        "devido": service.total_devido(db, cliente),
         "formas": caixa_repo.formas_ativas(db),
         "valores": valores,
         "chave": valores.get("chave") or str(uuid4()),
@@ -407,8 +438,10 @@ async def receber(
 def _form_simples(
     request: Request, db: Session, cliente_id: int, tipo: str, **extra: Any
 ) -> Response:
+    cliente = service.obter_cliente(db, cliente_id)
     contexto = {
-        "cliente": service.obter_cliente(db, cliente_id),
+        "cliente": cliente,
+        "devido": service.total_devido(db, cliente),
         "tipo": tipo,
         "chave": str(uuid4()),
         "hoje": hoje_local().isoformat(),

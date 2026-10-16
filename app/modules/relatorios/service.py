@@ -112,6 +112,7 @@ class ResumoFiadoPeriodo:
     recebido_centavos: int = 0
     abatimentos_centavos: int = 0
     saldo_inicial_centavos: int = 0  # dívidas trazidas do caderno (não são vendas do período)
+    juros_centavos: int = 0  # juros por atraso de parcelas lançados no período (líquido)
 
 
 @dataclass
@@ -184,6 +185,8 @@ def _fiado(lancamentos: list[FiadoLancamento]) -> ResumoFiadoPeriodo:
             resumo.abatimentos_centavos += -valor
         elif tipo == TipoFiado.SALDO_INICIAL:
             resumo.saldo_inicial_centavos += valor
+        elif tipo == TipoFiado.JUROS:
+            resumo.juros_centavos += valor
     return resumo
 
 

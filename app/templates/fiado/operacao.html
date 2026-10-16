@@ -5,7 +5,7 @@
 {% set titulos = {'abater': '✂ Abater / perdoar dívida', 'saldo-inicial': '📖 Saldo trazido do caderno', 'devolver': '↩ Devolver crédito em dinheiro'} %}
 <section class="cartao estreito">
   <h1>{{ titulos[tipo] }}</h1>
-  <p><strong>{{ cliente.nome }}</strong> · {{ saldo(cliente.saldo_centavos) }}</p>
+  <p><strong>{{ cliente.nome }}</strong> · {{ saldo(devido) }}</p>
   {% if tipo == 'abater' %}
   <p class="dica">Use para desconto, devolução de mercadoria ou dívida perdoada. Não mexe no caixa.</p>
   {% elif tipo == 'saldo-inicial' %}

@@ -80,6 +80,21 @@ def gerais(
     return _voltar(request, "Configurações salvas.", "gerais")
 
 
+@router.post("/juros")
+def juros(
+    request: Request,
+    taxa: str = Form(""),
+    carencia: str = Form(""),
+    admin: Usuario = Depends(exigir_admin),
+    db: Session = Depends(obter_db),
+) -> Response:
+    try:
+        service.salvar_juros(db, admin, taxa, carencia, ip_cliente(request))
+    except ErroNegocio as e:
+        return _voltar(request, e.mensagem, "juros", erro=True)
+    return _voltar(request, "Juros salvos (valem para as compras parceladas novas).", "juros")
+
+
 @router.post("/formas")
 def nova_forma(
     request: Request,

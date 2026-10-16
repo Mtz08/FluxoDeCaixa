@@ -4,7 +4,7 @@
 {% block conteudo %}
 <section class="cartao estreito">
   <h1>📒 Anotar fiado</h1>
-  <p><strong>{{ cliente.nome }}</strong>{% if cliente.apelido %} ({{ cliente.apelido }}){% endif %} · {{ saldo(cliente.saldo_centavos) }}
+  <p><strong>{{ cliente.nome }}</strong>{% if cliente.apelido %} ({{ cliente.apelido }}){% endif %} · {{ saldo(devido) }}
     {% if cliente.limite_centavos is not none %}<br><span class="dica">Pode comprar mais {{ cliente.pode_comprar_centavos() | reais }} (limite {{ cliente.limite_centavos | reais }})</span>{% endif %}</p>
 
   <form method="post" action="/fiado/clientes/{{ cliente.id }}/compra" class="formulario" data-lancamento>
@@ -30,6 +30,24 @@
         <input name="pago_{{ f.id }}" value="{{ valores.get('pago_' ~ f.id, '') }}" data-moeda inputmode="numeric" autocomplete="off" placeholder="0,00">
       </label>
       {% endfor %}
+    </details>
+    {% set n_parcelas = valores.get('parcelas', '0') | string %}
+    <details {% if n_parcelas != '0' %}open{% endif %}>
+      <summary>Parcelar? (ex.: mochila em 3x)</summary>
+      <label>Em quantas parcelas
+        <select name="parcelas">
+          <option value="0" {% if n_parcelas == '0' %}selected{% endif %}>Não parcelar (fiado comum, sem juros)</option>
+          {% for n in range(1, max_parcelas + 1) %}
+          <option value="{{ n }}" {% if n_parcelas == n|string %}selected{% endif %}>{{ n }}x{% if n == 1 %} (1 parcela com vencimento){% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Vencimento da 1ª parcela (as outras: mesmo dia, nos meses seguintes)
+        <input name="vencimento" type="date" value="{{ valores.get('vencimento', vencimento_sugerido) }}" min="{{ hoje }}">
+      </label>
+      <p class="aviso aviso-alerta" role="note">⚠ Informe o cliente: parcela não paga até <strong>{{ condicoes.carencia_dias }} dias</strong> após o
+        vencimento passa a ter <strong>juros de {{ condicoes.taxa_texto }}% ao dia</strong> (cerca de {{ condicoes.taxa_mes_texto }}% ao mês),
+        só sobre o valor em atraso, até o pagamento.</p>
     </details>
     <div class="acoes acoes-invertidas">
       <button type="submit" class="botao botao-principal">Continuar ↵</button>

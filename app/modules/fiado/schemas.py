@@ -76,6 +76,9 @@ class NovaCompra(BaseModel):
     data_referencia: date
     chave: UUID
     confirmar_valor_alto: bool = False
+    # Parcelamento: 0 = fiado comum (sem vencimento e sem juros); 1..24 = parcelas mensais.
+    parcelas: int = Field(default=0, ge=0, le=24)
+    primeiro_vencimento: date | None = None
 
     @field_validator("descricao")
     @classmethod

@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 from app.core.datas import formatar_data, formatar_data_hora
 from app.core.dinheiro import formatar_reais, valor_para_campo
 from app.core.seguranca import CAMPO_CSRF
+from app.modules.fiado.parcelas import ppm_para_percentual
 
 COOKIE_AVISO = "caixa_aviso"
 _PREFIXO_ERRO = "erro:"
@@ -22,6 +23,7 @@ templates.env.filters["reais"] = formatar_reais
 templates.env.filters["data_hora"] = formatar_data_hora
 templates.env.filters["data"] = formatar_data
 templates.env.filters["campo_moeda"] = valor_para_campo
+templates.env.filters["taxa_juros"] = ppm_para_percentual
 
 
 def renderizar(

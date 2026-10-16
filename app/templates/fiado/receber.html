@@ -4,7 +4,7 @@
 {% block conteudo %}
 <section class="cartao estreito">
   <h1>💵 Receber pagamento</h1>
-  <p><strong>{{ cliente.nome }}</strong>{% if cliente.apelido %} ({{ cliente.apelido }}){% endif %} · {{ saldo(cliente.saldo_centavos) }}</p>
+  <p><strong>{{ cliente.nome }}</strong>{% if cliente.apelido %} ({{ cliente.apelido }}){% endif %} · {{ saldo(devido) }}</p>
 
   <form method="post" action="/fiado/clientes/{{ cliente.id }}/receber" class="formulario" data-lancamento>
     <input type="hidden" name="{{ campo_csrf }}" value="{{ csrf_token }}">

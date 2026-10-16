@@ -266,11 +266,13 @@ details > *:not(summary) { margin-top: 0.75rem; }
 }
 .aviso-ok { color: #bbf7d0; background: var(--verde-fundo); border-color: var(--verde-borda); border-left-color: var(--verde); }
 .aviso-erro { color: #fecaca; background: var(--vermelho-fundo); border-color: var(--vermelho-borda); border-left-color: var(--vermelho); }
+.aviso-alerta { color: #fde68a; background: var(--amarelo-fundo); border-color: var(--amarelo-borda); border-left-color: var(--amarelo); font-weight: 500; }
 .aviso a { color: inherit; text-decoration: underline; }
 
 .etiqueta { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.82rem; font-weight: 650; border: 1px solid transparent; white-space: nowrap; }
 .etiqueta-verde { color: var(--verde); background: var(--verde-fundo); border-color: var(--verde-borda); }
 .etiqueta-amarela { color: var(--amarelo); background: var(--amarelo-fundo); border-color: var(--amarelo-borda); }
+.etiqueta-vermelha { color: var(--vermelho); background: var(--vermelho-fundo); border-color: var(--vermelho-borda); }
 .etiqueta-cinza { color: var(--texto-suave); background: rgba(148, 163, 184, 0.12); border-color: rgba(148, 163, 184, 0.25); }
 
 .valor-entrada { color: var(--verde); font-weight: 700; }
